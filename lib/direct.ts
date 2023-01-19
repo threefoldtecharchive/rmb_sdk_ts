@@ -13,12 +13,12 @@ import { waitReady } from '@polkadot/wasm-crypto'
  */
 export async function newClient(url: string, twinId: number, session: string, kprType: string, mnemonics: string) {
     // create keyring pair based on given type
-    let keyring;
-    if (kprType.toLowerCase() == 'sr') {
-        keyring = new Keyring({ type: 'sr25519' });
-    } else {
-        keyring = new Keyring({ type: 'ed25519' });
-    }
+    // let keyring;
+    // if (kprType.toLowerCase() == 'sr') {
+    //     keyring = new Keyring({ type: 'sr25519' });
+    // } else {
+    //     keyring = new Keyring({ type: 'ed25519' });
+    // }
     await waitReady();
     // // create identity (i.e keypair) from mnemonics
     // const identity = keyring.addFromUri(mnemonics);
