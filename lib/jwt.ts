@@ -1,5 +1,3 @@
-
-import { createHmac } from 'crypto'
 import base64url from "base64url";
 import Keyring from '@polkadot/keyring';
 enum KeypairType {

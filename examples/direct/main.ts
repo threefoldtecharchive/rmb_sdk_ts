@@ -1,4 +1,3 @@
-import Keyring from "@polkadot/keyring";
 import { newClient } from "../../lib/direct";
 
 async function main() {
