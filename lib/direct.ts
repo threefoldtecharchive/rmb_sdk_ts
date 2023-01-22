@@ -1,5 +1,4 @@
 import ws from 'ws';
-import { Keyring } from '@polkadot/api';
 import { newJWT } from './jwt';
 
 import { waitReady } from '@polkadot/wasm-crypto'
@@ -11,19 +10,11 @@ import { waitReady } from '@polkadot/wasm-crypto'
  * @param kprType 
  * @param mnemonics 
  */
-export async function newClient(url: string, twinId: number, session: string, kprType: string, mnemonics: string) {
-    // create keyring pair based on given type
-    // let keyring;
-    // if (kprType.toLowerCase() == 'sr') {
-    //     keyring = new Keyring({ type: 'sr25519' });
-    // } else {
-    //     keyring = new Keyring({ type: 'ed25519' });
-    // }
+export async function newClient(url: string, twinId: number, session: string, mnemonics: string, accountType: string) {
+
     await waitReady();
-    // // create identity (i.e keypair) from mnemonics
-    // const identity = keyring.addFromUri(mnemonics);
     // create token from identity
-    const token = newJWT(mnemonics, twinId, session)
+    const token = newJWT(mnemonics, twinId, session, accountType)
     // update url with token
     url = `${url}?${token}`;
     console.log(url)

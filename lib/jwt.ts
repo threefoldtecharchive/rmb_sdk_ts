@@ -2,6 +2,11 @@
 import { createHmac } from 'crypto'
 import base64url from "base64url";
 import Keyring from '@polkadot/keyring';
+enum KeypairType {
+    sr25519 = "sr25519",
+    ed25519 = "ed25519"
+}
+
 /**
  * create jwt token string
  * @param identity 
@@ -9,24 +14,29 @@ import Keyring from '@polkadot/keyring';
  * @param session 
  * @returns token string
  */
-export function newJWT(mnemonics: string, id: number, session: string) {
+export function newJWT(mnemonics: string, id: number, session: string, accountType: string) {
     const header = {
         alg: "RS512",
         typ: "JWT"
     };
-    const encodedHeader = base64url(Buffer.from(JSON.stringify(header)));
-    const payload = {
-        exp: Math.floor(Date.now() / 1000) + 60,
+
+    const typePrefix = accountType === KeypairType.sr25519 ? "s" : "e";
+
+    const keyring = new Keyring({ type: accountType === KeypairType.sr25519 ? 'sr25519' : 'ed25519' });
+    const keypair = keyring.addFromMnemonic(mnemonics);
+
+    const now = Math.ceil(Date.now().valueOf() / 1000);
+    const claims = {
         sub: id,
-        iat: Date.now() / 1000,
-        sid: session
+        iat: now,
+        exp: now + 1000,
+        sid: session,
     }
-    const encodedPayload = base64url(Buffer.from(JSON.stringify(payload)));
-    const keyring = new Keyring({ type: 'sr25519' });
-    const pk = keyring.addFromUri(mnemonics).publicKey
-    const sig = createHmac('sha256', mnemonics).update(encodedHeader + "." + encodedPayload).digest('base64');
-    const signature = base64url.fromBase64(sig);
-    const token = `${encodedHeader}.${encodedPayload}.${signature}`;
+    const jwt = base64url(JSON.stringify(header)) + "." + base64url(JSON.stringify(claims));
+    const sig = keypair.sign(jwt);
+    const prefix = Buffer.from(typePrefix).readUint8(0)
+    const sigPrefixed = new Uint8Array([prefix, ...sig]);
+    const token = jwt + "." + base64url(Buffer.from(sigPrefixed));
     return token;
 
 }
