@@ -1,5 +1,5 @@
 // package: 
-// file: lib/types.proto
+// file: types.proto
 
 import * as jspb from "google-protobuf";
 
