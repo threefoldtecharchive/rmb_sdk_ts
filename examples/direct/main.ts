@@ -1,33 +1,31 @@
-import { newClient, newEnvelope } from "../../lib/direct";
+import { newClient, newEnvelope, clientInterface } from "../../lib/direct";
 import { Envelope } from "../../lib/types/types_pb";
-
-async function main() {
-
+let socket: any = null;
+let client: clientInterface;
+let envelope: Envelope
+async function connect_socket() {
     // create client
-    const client = await newClient(`wss://relay.dev.grid.tf`, 1206, "test_client", "drama govern gossip audit mixed silent voice mule wonder protect latin idea", 'sr25519');
+    client = await newClient(`ws://localhost:8080/`, 1206, "test_client", "drama govern gossip audit mixed silent voice mule wonder protect latin idea", 'sr25519');
     console.log('Connected', client)
-    const con = client.con;
-    const envelope = newEnvelope(1200, client.source.getConnection(), 1200, client.signer, "calculator.add", [10, 20]);
-    // con.onopen = onOpen;
-    // con.onerror = onError;
-    // con.onmessage = onMessage;
-    con.on('open', function open() {
-        console.log('client connected')
-        con.send(envelope.serializeBinary());
+    socket = client.con;
+    envelope = newEnvelope(1206, client.source.getConnection(), 1257, client.signer, "calculator.add", [10, 20]);
+    socket.on('close', connect_socket)
+    socket.on('open', () => {
+        socket.send(envelope.serializeBinary());
+        console.log('envelope sent')
+        heartbeat();
     });
-    // function onError(error: any) {
-    //     console.log(error)
-    // }
-    // // function onOpen(event: any) {
-    // //     console.log('client connected');
-    // //     con.send(proto.Marshal());
-    // // }
-    // function onMessage(event: any) {
-    //     console.log('received:', event);
-    // }
-    con.on('message', function message(data) {
-        console.log('received: %s', data.toString());
-    });
+
+
 
 }
-main()
+function heartbeat() {
+    if (!socket) return;
+    if (socket.readyState != 1) return;
+    console.log("waiting  on message receival")
+    socket.on('message', (data: any) => {
+        console.log("received:", data)
+
+    })
+}
+connect_socket()

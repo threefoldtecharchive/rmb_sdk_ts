@@ -4,7 +4,11 @@ import { waitReady } from '@polkadot/wasm-crypto';
 import { Envelope, Address, Request, Response } from './types/types_pb';
 import { v4 as uuidv4 } from 'uuid';
 import { KeyringPair } from '@polkadot/keyring/types';
-
+export interface clientInterface {
+    source: Address,
+    signer: KeyringPair,
+    con: WebSocket
+}
 
 /**
  * creates new client
@@ -33,7 +37,7 @@ export async function newClient(url: string, twinId: number, session: string, mn
     source.setConnection(session);
 
     // create client with websocket connection
-    const client = {
+    const client: clientInterface = {
         source: source,
         signer: identity,
         con: ws
@@ -46,7 +50,7 @@ export async function newClient(url: string, twinId: number, session: string, mn
 export function newEnvelope(sourceTwinId: number, session: string, destTwinId: number, identity: KeyringPair, requestCommand: string, requestData: any[]) {
     const envelope = new Envelope();
     envelope.setUid(uuidv4());
-    envelope.setTimestamp(Date.now() / 1000);
+    envelope.setTimestamp(Math.round(Date.now() / 1000));
     envelope.setExpiration(5 * 60);
     const source = new Address();
     source.setTwin(sourceTwinId);
