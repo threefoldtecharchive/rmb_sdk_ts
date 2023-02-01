@@ -9,7 +9,7 @@ async function connect_socket() {
     console.log('Connected', client)
     socket = client.con;
     envelope = newEnvelope(1206, client.source.getConnection(), 1257, client.signer, "calculator.add", [10, 20]);
-    socket.on('close', connect_socket)
+    socket.on('close', heartbeat)
     socket.on('open', () => {
         socket.send(envelope.serializeBinary());
         console.log('envelope sent')
