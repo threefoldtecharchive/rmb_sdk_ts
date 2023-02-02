@@ -9,7 +9,7 @@ async function connect_socket() {
     client = await newClient(`ws://localhost:8080/`, 1206, "test_client", "drama govern gossip audit mixed silent voice mule wonder protect latin idea", 'sr25519');
     console.log('Connected', client)
     socket = client.con
-    envelope = newEnvelope(1206, client.source.getConnection(), 1292, client.signer, "calculator.add", [10, 20]);
+    envelope = newEnvelope(1206, client.source.getConnection(), 1292, client.signer, "calculator.add", [10.6, 20]);
     socket.on('open', () => {
         socket.send(envelope.serializeBinary());
         console.log('envelope sent')
@@ -26,10 +26,18 @@ function heartbeat() {
         const receivedEnvelope = Envelope.deserializeBinary(data);
         console.log(receivedEnvelope.hasResponse());
         const response = receivedEnvelope.getResponse();
-        console.log(response?.hasError());
-        const err = response?.getError();
-        console.log(err?.getMessage())
-        console.log(err?.getCode())
+        if (response) {
+            const reply = response.getReply();
+            const err = response.getError();
+            if (reply) {
+                const dataReceieved = reply.getData();
+                const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceieved))
+                console.log("response: ", JSON.parse(decodedData))
+            } else if (err) {
+                console.log(err.getCode(), err.getMessage());
+            }
+        }
+
     })
 
 }

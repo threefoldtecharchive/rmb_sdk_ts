@@ -54,6 +54,7 @@ export async function newClient(url: string, twinId: number, session: string, mn
 export function newEnvelope(sourceTwinId: number, session: string, destTwinId: number, identity: KeyringPair, requestCommand: string, requestData: any[]) {
     const envelope = new Envelope();
     envelope.setUid(uuidv4());
+
     envelope.setTimestamp(Math.round(Date.now() / 1000));
     envelope.setExpiration(5 * 60);
     const source = new Address();
