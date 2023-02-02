@@ -8,6 +8,7 @@ export interface clientInterface {
     source: Address,
     signer: KeyringPair,
     con: WebSocket
+    // url: string
 }
 
 /**
@@ -40,7 +41,8 @@ export async function newClient(url: string, twinId: number, session: string, mn
     const client: clientInterface = {
         source: source,
         signer: identity,
-        con: ws
+        con: ws,
+        // url: url
 
     }
 
@@ -58,13 +60,14 @@ export function newEnvelope(sourceTwinId: number, session: string, destTwinId: n
     envelope.setSource(source);
     const destination = new Address();
     destination.setTwin(destTwinId);
-    destination.setConnection(session);
+    // destination.setConnection(null);
     envelope.setDestination(destination);
     envelope.setSchema("application/json");
     const request = new Request();
     request.setCommand(requestCommand);
-    request.setData(new Uint8Array(requestData));
+    request.setData(Buffer.from(JSON.stringify(requestData)));
     // const response = new Response();
+    envelope.setRequest(request);
     const signature = signEnvelope(envelope, identity)
     envelope.setSignature(signature);
     // console.log(envelope);
