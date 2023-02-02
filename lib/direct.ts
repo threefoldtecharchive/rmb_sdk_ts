@@ -1,9 +1,11 @@
 import WebSocket from 'ws';
-import { createIdentity, newJWT, sign } from './jwt';
+import { newJWT } from './jwt';
 import { waitReady } from '@polkadot/wasm-crypto';
 import { Envelope, Address, Request, Response } from './types/types_pb';
 import { v4 as uuidv4 } from 'uuid';
 import { KeyringPair } from '@polkadot/keyring/types';
+import { createIdentity } from './identity';
+import { challenge, sign } from './sign';
 export interface clientInterface {
     source: Address,
     signer: KeyringPair,
@@ -75,27 +77,8 @@ export function newEnvelope(sourceTwinId: number, session: string, destTwinId: n
 
 }
 function signEnvelope(envelope: Envelope, identity: KeyringPair) {
-    const request = envelope.getRequest();
-    const response = envelope.getResponse();
-    let toSign = "";
-    if (response) {
-        const responseChallenged = challengeResponse(response);
-        if (responseChallenged) {
-            toSign = responseChallenged;
-        }
-    }
-    if (request) {
-        toSign = challengeRequest(request);
-    }
+    const toSign = challenge(envelope);
+
     return sign(toSign, identity);
 }
-function challengeRequest(request: Request) {
-    return request.getData().toString();
-}
-function challengeResponse(response: Response) {
-    const reply = response.getReply()
-    if (reply) {
-        return reply.getData().toString();
-    }
-    return null;
-}
+

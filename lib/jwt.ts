@@ -1,10 +1,7 @@
 import base64url from "base64url";
-import Keyring from '@polkadot/keyring';
+
 import { KeyringPair } from "@polkadot/keyring/types";
-enum KeypairType {
-    sr25519 = "sr25519",
-    ed25519 = "ed25519"
-}
+import { sign } from "./sign"
 
 /**
  * create jwt token string
@@ -33,19 +30,5 @@ export function newJWT(identity: KeyringPair, id: number, session: string) {
     return token;
 
 }
-export function sign(payload: string, identity: KeyringPair) {
 
-    const typePrefix = identity.type === KeypairType.sr25519 ? "s" : "e";
-    const sig = identity.sign(payload);
-    const prefix = Buffer.from(typePrefix).readUint8(0)
-    const sigPrefixed = new Uint8Array([prefix, ...sig]);
-    return sigPrefixed;
-}
-export function createIdentity(mnemonics: string, accountType: string) {
 
-    const keyring = new Keyring({ type: accountType === KeypairType.sr25519 ? 'sr25519' : 'ed25519' });
-    const keypair = keyring.addFromMnemonic(mnemonics);
-
-    return keypair;
-
-}

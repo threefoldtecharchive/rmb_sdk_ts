@@ -5,7 +5,6 @@ let socket: any = null;
 let client: clientInterface;
 let envelope: Envelope
 async function connect_socket() {
-
     // create client
     client = await newClient(`ws://localhost:8080/`, 1206, "test_client", "drama govern gossip audit mixed silent voice mule wonder protect latin idea", 'sr25519');
     console.log('Connected', client)
@@ -16,6 +15,7 @@ async function connect_socket() {
         console.log('envelope sent')
         heartbeat();
     });
+
 }
 function heartbeat() {
     if (!socket) return;
