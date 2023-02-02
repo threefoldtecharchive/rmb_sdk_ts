@@ -20,11 +20,9 @@ async function connect_socket() {
 function heartbeat() {
     if (!socket) return;
     if (socket.readyState != 1) return;
-    console.log("waiting  on message receival")
+    console.log("waiting  on response...")
     socket.on('message', (data: Buffer) => {
-        console.log("received:", data);
         const receivedEnvelope = Envelope.deserializeBinary(data);
-        console.log(receivedEnvelope.hasResponse());
         const response = receivedEnvelope.getResponse();
         if (response) {
             const reply = response.getReply();
