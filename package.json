@@ -9,6 +9,7 @@
     "start": "nodemon ./examples/direct/main.ts"
   },
   "dependencies": {
+    "@cuillere/core": "^0.13.0",
     "@polkadot/api": "^9.11.3",
     "@polkadot/keyring": "^10.2.6",
     "@polkadot/util-crypto": "^10.2.6",
@@ -19,10 +20,13 @@
     "express": "^4.18.2",
     "nodemon": "^2.0.20",
     "protoc-gen-ts": "^0.8.5",
+    "reconnecting-websocket": "^4.4.0",
+    "socket.io-client": "^4.5.4",
     "ts-node": "^10.9.1",
     "ts-protoc-gen": "^0.15.0",
     "typescript": "^4.9.4",
     "uuid": "^9.0.0",
+    "websocket-reconnect": "^1.0.7",
     "ws": "^8.12.0"
   },
   "devDependencies": {
