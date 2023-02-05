@@ -1,4 +1,4 @@
-import { createClient, connect, sendRequest } from "../../lib/direct";
+import { createClient, connect, sendRequest } from "../../lib/client";
 
 async function main() {
     // create client 
