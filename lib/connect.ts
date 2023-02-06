@@ -32,10 +32,10 @@ export function listening(requestID: string, client: directClientInterface, sock
                     if (reply) {
                         const dataReceieved = reply.getData();
                         const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceieved))
-                        const responseString = `response: ${JSON.parse(decodedData)}`;
+                        const responseString = JSON.parse(decodedData);
                         resolve(responseString);
                     } else if (err) {
-                        const errString = `error: ${err.getCode()} ${err.getMessage()}`
+                        const errString = `${err.getCode()} ${err.getMessage()}`
                         reject(errString)
 
                     }
