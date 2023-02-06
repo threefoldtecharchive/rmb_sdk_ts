@@ -6,12 +6,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { KeyringPair } from '@polkadot/keyring/types';
 import { createIdentity } from './identity';
 import { challenge, sign } from './sign';
-import ReconnectingWebSocket from 'reconnecting-websocket';
+import ReconnectingWebSocket, { Message } from 'reconnecting-websocket';
+import { WsReconnect } from 'websocket-reconnect';
 export interface clientInterface {
     source: Address,
     signer: KeyringPair,
     connected: boolean,
     url: string,
+    con: ReconnectingWebSocket,
     responses: Map<any, any>
 };
 
@@ -42,12 +44,16 @@ export async function newClient(url: string, twinId: number, session: string, mn
     // initialize responses map 
     const responses = new Map()
 
+    // 
+    const socket = connect(url);
+
     // create client with websocket connection
     const client: clientInterface = {
         source: source,
         signer: identity,
-        connected: false,
+        connected: true,
         url: url,
+        con: socket,
         responses: responses
 
     }
@@ -56,20 +62,18 @@ export async function newClient(url: string, twinId: number, session: string, mn
 
 }
 
-export function connect(client: clientInterface) {
+export function connect(url: string) {
 
     // start websocket connection with updated url
     const options = {
         WebSocket: Ws,
         debug: true,
     }
-    const ws = new ReconnectingWebSocket(client.url, [], options);
-    // set client connected state to true
-    client.connected = true;
+    const ws = new ReconnectingWebSocket(url, [], options);
 
-
-    ws.addEventListener('message', (e) => {
-        console.log(e);
+    ws.onmessage = (e) => {
+        console.log("waiting response...");
+        console.log(e.data)
         const receivedEnvelope = Envelope.deserializeBinary(e.data);
         const response = receivedEnvelope.getResponse();
 
@@ -84,19 +88,19 @@ export function connect(client: clientInterface) {
                 console.log(`error: ${err.getCode()} ${err.getMessage()}`);
             }
         }
+    }
 
 
-
-    })
     console.log(ws)
 
 
     return ws;
 }
+
 export async function createClient(url: string, twinID: number, session: string, mnemonics: string, keyType: string) {
     // create client
     const client = await newClient(url, twinID, session, mnemonics, keyType);
-    console.log('Client created!', client)
+
     return client;
 
 }
@@ -104,10 +108,10 @@ export function sendRequest(sourceTwinId: number, client: clientInterface, socke
 
     // create new envelope with given data and destination
     const envelope = newEnvelope(sourceTwinId, client.source.getConnection(), destinationTwinId, client.signer, requestCommand, requestData);
-    console.log("envelope created")
+
     // send enevelope binary using socket
     socket.send(envelope.serializeBinary());
-    console.log("envelope sent")
+    console.log('enevelope sent')
     // add request id to responses map on client object
     const requestID = uuidv4();
     client.responses.set(requestID, null)

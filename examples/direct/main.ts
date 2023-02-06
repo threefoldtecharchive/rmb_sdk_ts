@@ -1,15 +1,17 @@
 import { createClient, connect, sendRequest } from "../../lib/client";
+import { Envelope } from "../../lib/types/types_pb";
 
 async function main() {
     // create client 
     const client = await createClient(`ws://localhost:8080/`, 1206, "test_client", "drama govern gossip audit mixed silent voice mule wonder protect latin idea", 'sr25519');
     // start ws connection 
-    const socket = connect(client)
+    // const socket = connect(client)
 
     // send request
-    sendRequest(1206, client, socket, "calculator.add", [10.6, 20], 1292);
+    sendRequest(1206, client, client.con, "calculator.add", [10.6, 20], 1292);
     // add request to client map 
     // get response to request
+
 
 }
 
