@@ -34,6 +34,8 @@ export function listening(requestID: string, client: directClientInterface, sock
                     console.log(`error: ${err.getCode()} ${err.getMessage()}`);
                 }
             }
+            // remove no longer needed key value pair
+            client.responses.delete(requestID);
         }
 
     }
