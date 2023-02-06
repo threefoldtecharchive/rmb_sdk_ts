@@ -1,17 +1,13 @@
-import { createClient, connect, sendRequest } from "../../lib/client";
-import { Envelope } from "../../lib/types/types_pb";
+import { createDirectClient, sendDirectRequest } from "../../lib/direct";
+
 
 async function main() {
+
     // create client 
-    const client = await createClient(`ws://localhost:8080/`, 1206, "test_client", "drama govern gossip audit mixed silent voice mule wonder protect latin idea", 'sr25519');
-    // start ws connection 
-    // const socket = connect(client)
+    const client = await createDirectClient(`ws://localhost:8080/`, "test_client", "drama govern gossip audit mixed silent voice mule wonder protect latin idea", 'sr25519');
 
     // send request
-    sendRequest(1206, client, client.con, "calculator.add", [10.6, 20], 1292);
-    // add request to client map 
-    // get response to request
-
+    sendDirectRequest(1206, client, client.con, "calculator.add", [10.6, 20], 1292);
 
 }
 
