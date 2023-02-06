@@ -13,6 +13,7 @@ interface directClientInterface {
     signer: KeyringPair,
     connected: boolean,
     con: ReconnectingWebSocket,
+    twinId: number
 }
 export async function getTwinId(address: string) {
     const provider = new WsProvider("wss://tfchain.dev.grid.tf/ws")
@@ -49,6 +50,7 @@ export async function newDirectClient(url: string, session: string, mnemonics: s
         signer: identity,
         connected: true,
         con: socket,
+        twinId: twinId
     }
 
     return client;
@@ -61,10 +63,10 @@ export async function createDirectClient(url: string, session: string, mnemonics
     return client;
 
 }
-export function sendDirectRequest(sourceTwinId: number, client: directClientInterface, socket: ReconnectingWebSocket, requestCommand: string, requestData: any[], destinationTwinId: number) {
+export function sendDirectRequest(client: directClientInterface, socket: ReconnectingWebSocket, requestCommand: string, requestData: any[], destinationTwinId: number) {
 
     // create new envelope with given data and destination
-    const envelope = newEnvelope(sourceTwinId, client.source.getConnection(), destinationTwinId, client.signer, requestCommand, requestData);
+    const envelope = newEnvelope(client.twinId, client.source.getConnection(), destinationTwinId, client.signer, requestCommand, requestData);
 
     // send enevelope binary using socket
     socket.send(envelope.serializeBinary());
