@@ -8,12 +8,12 @@ import { Address, Envelope, Request } from "./types/types_pb";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { ApiPromise, WsProvider } from '@polkadot/api'
-interface directClientInterface {
+export interface directClientInterface {
     source: Address,
     signer: KeyringPair,
-    connected: boolean,
-    con: ReconnectingWebSocket,
-    twinId: number
+    twinId: number,
+    url: string,
+    responses: Map<any, any>
 }
 export async function getTwinId(address: string) {
     const provider = new WsProvider("wss://tfchain.dev.grid.tf/ws")
@@ -42,15 +42,16 @@ export async function newDirectClient(url: string, session: string, mnemonics: s
     source.setConnection(session);
 
     // connect websocket
-    const socket = connect(url);
+
+    const responses = new Map<any, any>()
 
     // create client with websocket connection
     const client: directClientInterface = {
         source: source,
         signer: identity,
-        connected: true,
-        con: socket,
-        twinId: twinId
+        twinId: twinId,
+        url: url,
+        responses: responses
     }
 
     return client;
@@ -73,6 +74,9 @@ export function sendDirectRequest(client: directClientInterface, socket: Reconne
     console.log('envelope sent')
     // add request id to responses map on client object
     const requestID = uuidv4();
+    client.responses.set(requestID, envelope)
+    console.log(client.responses)
+    return requestID;
 
 }
 export function newEnvelope(sourceTwinId: number, session: string, destTwinId: number, identity: KeyringPair, requestCommand: string, requestData: any[]) {
