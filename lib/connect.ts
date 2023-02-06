@@ -36,7 +36,7 @@ export function listening(requestID: string, client: directClientInterface, sock
                         resolve(responseString);
                     } else if (err) {
                         const errString = `error: ${err.getCode()} ${err.getMessage()}`
-                        resolve(errString)
+                        reject(errString)
 
                     }
                 }
@@ -44,14 +44,8 @@ export function listening(requestID: string, client: directClientInterface, sock
                 client.responses.delete(requestID);
             }
 
-
         }
 
-
-
-
     })
-
-
 
 }
