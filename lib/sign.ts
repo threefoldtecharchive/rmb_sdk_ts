@@ -1,8 +1,10 @@
 import { KeyringPair } from "@polkadot/keyring/types";
 import crypto from 'crypto';
-import { KeypairType } from "./identity";
 import { Envelope, Request, Response, Address } from "./types/types_pb";
-
+enum KeypairType {
+    sr25519 = "sr25519",
+    ed25519 = "ed25519"
+}
 export function sign(payload: string | Uint8Array, identity: KeyringPair) {
     const typePrefix = identity.type === KeypairType.sr25519 ? "s" : "e";
     const sig = identity.sign(payload);

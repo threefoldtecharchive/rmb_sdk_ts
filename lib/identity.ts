@@ -1,11 +1,9 @@
 import Keyring from '@polkadot/keyring';
-export enum KeypairType {
-    sr25519 = "sr25519",
-    ed25519 = "ed25519"
-}
-export function createIdentity(mnemonics: string, accountType: string) {
+import { KeypairType } from '@polkadot/util-crypto/types';
 
-    const keyring = new Keyring({ type: accountType === KeypairType.sr25519 ? 'sr25519' : 'ed25519' });
+export function createIdentity(mnemonics: string, accountType: KeypairType) {
+
+    const keyring = new Keyring({ type: accountType });
     const keypair = keyring.addFromMnemonic(mnemonics);
 
     return keypair;

@@ -8,6 +8,7 @@ import { Address, Envelope, Request } from "./types/types_pb";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { ApiPromise, WsProvider } from '@polkadot/api'
+import { KeypairType } from "@polkadot/util-crypto/types";
 export interface directClientInterface {
     source: Address,
     signer: KeyringPair,
@@ -24,7 +25,7 @@ export async function getTwinId(address: string) {
     return twin;
 
 }
-export async function newDirectClient(url: string, session: string, mnemonics: string, accountType: string) {
+export async function newDirectClient(url: string, session: string, mnemonics: string, accountType: KeypairType) {
     await waitReady();
 
     // create identity of source
@@ -57,34 +58,27 @@ export async function newDirectClient(url: string, session: string, mnemonics: s
     return client;
 
 }
-export async function createDirectClient(url: string, session: string, mnemonics: string, keyType: string) {
-    // create client
-    const client = await newDirectClient(url, session, mnemonics, keyType);
 
-    return client;
-
-}
-export function sendDirectRequest(client: directClientInterface, socket: ReconnectingWebSocket, requestCommand: string, requestData: any[], destinationTwinId: number) {
+export function sendDirectRequest(client: directClientInterface, socket: ReconnectingWebSocket, requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
 
     // create new envelope with given data and destination
-    const envelope = newEnvelope(client.twinId, client.source.getConnection(), destinationTwinId, client.signer, requestCommand, requestData);
+    const envelope = newEnvelope(client.twinId, client.source.getConnection(), destinationTwinId, client.signer, requestCommand, requestData, expirationMinutes);
 
     // send enevelope binary using socket
     socket.send(envelope.serializeBinary());
     console.log('envelope sent')
     // add request id to responses map on client object
-    const requestID = uuidv4();
-    client.responses.set(requestID, envelope)
+    client.responses.set(envelope.getUid(), envelope)
     console.log(client.responses)
-    return requestID;
+    return envelope.getUid();
 
 }
-export function newEnvelope(sourceTwinId: number, session: string, destTwinId: number, identity: KeyringPair, requestCommand: string, requestData: any[]) {
+export function newEnvelope(sourceTwinId: number, session: string, destTwinId: number, identity: KeyringPair, requestCommand: string, requestData: any, expirationMinutes: number) {
     const envelope = new Envelope();
     envelope.setUid(uuidv4());
 
     envelope.setTimestamp(Math.round(Date.now() / 1000));
-    envelope.setExpiration(5 * 60);
+    envelope.setExpiration(expirationMinutes * 60);
     const source = new Address();
     source.setTwin(sourceTwinId);
     source.setConnection(session);

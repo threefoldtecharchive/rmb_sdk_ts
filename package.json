@@ -1,7 +1,6 @@
 {
   "name": "rmb-sdk-ts",
   "version": "1.0.0",
-  "main": "index.js",
   "repository": "https://github.com/threefoldtech/rmb-sdk-ts.git",
   "author": "amiraabouhadid <amiraabouhadid@gmail.com>",
   "license": "MIT",
@@ -9,30 +8,22 @@
     "start": "nodemon ./examples/direct/main.ts"
   },
   "dependencies": {
-    "@cuillere/core": "^0.13.0",
     "@polkadot/api": "^9.11.3",
     "@polkadot/keyring": "^10.2.6",
     "@polkadot/util-crypto": "^10.2.6",
-    "@protobuf-ts/plugin": "^2.8.2",
     "base64url": "^3.0.1",
-    "bip39": "^3.0.4",
-    "bytebuffer": "^5.0.1",
-    "express": "^4.18.2",
-    "nodemon": "^2.0.20",
+    "google-protobuf": "^3.21.2",
     "protoc-gen-ts": "^0.8.5",
     "reconnecting-websocket": "^4.4.0",
-    "socket.io-client": "^4.5.4",
     "ts-node": "^10.9.1",
-    "ts-protoc-gen": "^0.15.0",
     "typescript": "^4.9.4",
     "uuid": "^9.0.0",
-    "websocket-reconnect": "^1.0.7",
     "ws": "^8.12.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.15",
     "@types/node": "^18.11.18",
     "@types/uuid": "^9.0.0",
-    "@types/ws": "^8.5.4"
+    "@types/ws": "^8.5.4",
+    "nodemon": "^2.0.20"
   }
 }
