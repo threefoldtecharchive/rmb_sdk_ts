@@ -1,22 +1,48 @@
-# Introduction
-This is a `Typescript` sdk that can be used to build both **services**, and **clients**
+## RMB TS CLIENT
+This is a `Typescript` client that can be used to build both **services**, and **clients**
 that can talk over the `rmb`.
 
 [RMB](https://github.com/threefoldtech/rmb-rs) is a message bus that enable secure
 and reliable `RPC` calls across the globe.
 
-`RMB` itself does not implement an RPC protocol, but just the secure and reliable messaging
-hence it's up to server and client to implement their own data format.
+This client can do the following: 
+- send requests over the distrubed `rmb-relay`.
+- receive and verify responses to sent requests.
 
-## Pre Requirements
-You need to run an `rmb-relay` locally. 
+An example of this client usage is defined under
+[examples](examples/direct/main.ts).
 
-### Direct Client
-There is a `direct` client that does not require `rmb-peer` and can connect directly to the rmb `relay`. This client is defined under
-[direct](examples/direct/main.ts)
-rmb-relay -dd --domain amira -s wss://tfchain.dev.grid.tf:443
-~/cs/rmb/rmb-rs/target/release
-./rmb-peer -d -m "thing sound motor agent acoustic must vapor reopen heart tomorrow sand they" -s "wss://tfchain.dev.grid.tf:443" --relay "ws://localhost:8080" --no-update
-redis-cli
-XLEN "stream:1292" 
-keys * 
+### Built with 
+- Typescript
+
+### Getting Started
+
+To get a local copy up and running following these simple steps: 
+- Open Terminal
+- Change the current working directory to the location you want the cloned directory.
+- Enter the following:
+``` 
+git clone https://github.com/threefoldtech/rmb-sdk-ts.git
+```
+- Press Enter to create your local clone.
+
+- Navigate to the cloned repository by running:
+
+```
+cd rmb-sdk-ts
+```
+- Then run the following to start the client:
+```
+yarn install
+yarn start
+```
+### Prerequisites:
+- Node.js
+- Git
+- Yarn
+
+### Contributors
+
+Contributions, issues, and feature requests are welcome!
+
+Feel free to check the [issues page](https://github.com/threefoldtech/rmb-sdk-ts/issues).
