@@ -13,7 +13,7 @@ async function main() {
     const requestID = client.send("calculator.add", [10.6, 20], 1292, 5);
 
     // get response
-    client.listen(requestID, (x) => { console.log(x) });
+    client.listen(requestID, (response: string) => { console.log(response) });
 }
 
 
