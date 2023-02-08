@@ -23,7 +23,7 @@ class Client {
 
 
     constructor() {
-        this.responses = new Map<string, Envelope>;
+        this.responses = new Map<string, Envelope>();
 
     }
     signEnvelope(envelope: Envelope) {
