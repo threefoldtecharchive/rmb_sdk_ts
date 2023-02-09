@@ -1,6 +1,6 @@
 import { KeyringPair } from "@polkadot/keyring/types";
 import ReconnectingWebSocket from "reconnecting-websocket";
-import { Address, Envelope, Request, Response } from "./types/types_pb";
+import { Address, Envelope, Request, Response, Error } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
@@ -26,6 +26,18 @@ class Client {
         this.responses = new Map<string, Envelope>();
 
     }
+    close() {
+        if (this.con.readyState != 3) {
+            this.con.close();
+        }
+
+    }
+    reconnect() {
+        if (this.con.readyState != 1) {
+            this.con.reconnect();
+        }
+
+    }
     signEnvelope(envelope: Envelope) {
         const toSign = this.challenge(envelope);
 
@@ -39,67 +51,74 @@ class Client {
         return sigPrefixed;
     }
     challenge(envelope: Envelope) {
-        const request = envelope.getRequest();
-        const response = envelope.getResponse();
+        const request = envelope.request;
+        const response = envelope.response;
+        const err = envelope.error
 
         let hash = crypto.createHash('md5')
-            .update(envelope.getUid())
-            .update(envelope.getTags())
-            .update(`${envelope.getTimestamp()}`)
-            .update(`${envelope.getExpiration()}`)
-            .update(this.challengeAddress(envelope.getSource()))
-            .update(this.challengeAddress(envelope.getDestination()))
+            .update(envelope.uid)
+            .update(envelope.tags)
+            .update(`${envelope.timestamp}`)
+            .update(`${envelope.expiration}`)
+            .update(this.challengeAddress(envelope.source))
+            .update(this.challengeAddress(envelope.destination))
 
         if (request) {
             hash = this.challengeRequest(request, hash);
         }
         else if (response) {
-            this.challengeResponse(response);
+            hash = this.challengeResponse(response, hash);
+        } else if (err) {
+            hash = this.challengeError(err, hash)
         }
+
+        if (envelope.schema) {
+            hash.update(envelope.schema);
+        }
+        if (envelope.federation) {
+            hash.update(envelope.federation)
+        }
+        if (envelope.plain) {
+            hash.update(envelope.plain)
+        } else if (envelope.cipher) {
+            hash.update(envelope.cipher)
+        }
+
 
         return hash.digest();
 
     }
     challengeAddress(address: Address | undefined) {
-        return `${address?.getTwin()}${address?.getConnection()}`;
+        return `${address?.twin}${address?.connection}`;
 
+    }
+    challengeError(err: Error, hash: crypto.Hash) {
+        return hash.update(`${err.code}${err.message}`)
     }
     challengeRequest(request: Request, hash: crypto.Hash) {
-        return hash.update(request.getCommand()).update(request.getData());
+        return hash.update(request.command);
     }
-    challengeResponse(response: Response) {
-        const err = response.getError();
-        const reply = response.getReply();
-        if (err) {
-            console.log(err.getCode(), err.getMessage());
-        } else {
-            console.log(reply?.getData())
-        }
+    challengeResponse(response: Response, hash: crypto.Hash) {
+        // to be implemented 
+        return hash
+
     }
     newEnvelope(destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
-        const envelope = new Envelope();
-        envelope.setUid(uuidv4());
-        envelope.setTimestamp(Math.round(Date.now() / 1000));
-        envelope.setExpiration(expirationMinutes * 60);
-        const source = new Address();
-        source.setTwin(this.twinId);
-        source.setConnection(this.source.getConnection());
-        envelope.setSource(source);
-        const destination = new Address();
-        destination.setTwin(destTwinId);
-        // destination.setConnection(null);
-        envelope.setDestination(destination);
-        envelope.setSchema("application/json");
-        const request = new Request();
-        request.setCommand(requestCommand);
+        const envelope = new Envelope({
+            uid: uuidv4(),
+            timestamp: Math.round(Date.now() / 1000),
+            expiration: expirationMinutes * 60,
+            source: new Address({ twin: this.twinId, connection: this.source.connection }),
+            destination: new Address({ twin: destTwinId }),
+            request: new Request({ command: requestCommand }),
+        });
+
         if (requestData) {
-            request.setData(Buffer.from(JSON.stringify(requestData)));
+            envelope.plain = new Uint8Array(Buffer.from(JSON.stringify(requestData)));
+
         }
-
-        envelope.setRequest(request);
-        const signature = this.signEnvelope(envelope)
-        envelope.setSignature(signature);
-
+        envelope.schema = "application/json"
+        envelope.signature = this.signEnvelope(envelope)
         return envelope;
 
     }
@@ -109,40 +128,36 @@ class Client {
         // send enevelope binary using socket
         this.con.send(envelope.serializeBinary());
         // add request id to responses map on client object
-        this.responses.set(envelope.getUid(), envelope)
-        return envelope.getUid();
+        this.responses.set(envelope.uid, envelope)
+        return envelope.uid;
 
     }
-    // async receive(requestID: string) {
-    //     return await this.listen(requestID, (response: string) => { return response });
-    // }
 
     listen(requestID: string, callback: (x: any) => void) {
         if (this.responses.get(requestID)) {
+
             const result = setInterval(() => {
-
-
-                if (this.responses.get(requestID)?.getResponse()) {
-
-                    const response = this.responses.get(requestID)?.getResponse();
-                    this.responses.delete(requestID);
-
-                    const reply = response?.getReply();
-                    const err = response?.getError();
-
-
-                    if (reply) {
-                        const dataReceieved = reply.getData();
-                        const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceieved))
+                // check if envelope in map has a response 
+                if (this.responses.get(requestID)?.response) {
+                    const dataReceived = this.responses.get(requestID)?.plain;
+                    if (dataReceived) {
+                        const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
                         const responseString = JSON.parse(decodedData);
                         callback(responseString);
+                        this.responses.delete(requestID);
+                        clearInterval(result)
+                    }
 
-                    }
+                }
+                // check if envelope in map has an error
+                else if (this.responses.get(requestID)?.error) {
+                    const err = this.responses.get(requestID)?.error
                     if (err) {
-                        const errString = `${err.getCode()} ${err.getMessage()}`
-                        callback(errString)
+                        callback(`${err.code} ${err.message}`);
+                        this.responses.delete(requestID);
+                        clearInterval(result)
                     }
-                    clearInterval(result)
+
 
                 }
 
@@ -167,11 +182,13 @@ class Client {
         this.con = new ReconnectingWebSocket(this.url, [], options);
         this.con.onmessage = (e: any) => {
             console.log("waiting response...");
+
             const receivedEnvelope = Envelope.deserializeBinary(e.data);
+
             //verify
-            if (this.responses.get(receivedEnvelope.getUid())) {
+            if (this.responses.get(receivedEnvelope.uid)) {
                 // update envelope in responses map
-                this.responses.set(receivedEnvelope.getUid(), receivedEnvelope)
+                this.responses.set(receivedEnvelope.uid, receivedEnvelope)
             }
 
         }
@@ -183,8 +200,8 @@ class Client {
         this.signer = keyring.addFromMnemonic(mnemonics);
     }
     updateSource(session: string) {
-        this.source.setTwin(this.twinId);
-        this.source.setConnection(session);
+        this.source.twin = this.twinId;
+        this.source.connection = session;
     }
     newJWT(session: string) {
         const header = {

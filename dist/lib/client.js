@@ -14,7 +14,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Client = void 0;
 const reconnecting_websocket_1 = __importDefault(require("reconnecting-websocket"));
-const types_pb_1 = require("./types/types_pb");
+const types_1 = require("./types/lib/types");
 const wasm_crypto_1 = require("@polkadot/wasm-crypto");
 const uuid_1 = require("uuid");
 const api_1 = require("@polkadot/api");
@@ -29,10 +29,20 @@ var KPType;
 })(KPType || (KPType = {}));
 class Client {
     constructor() {
-        this.source = new types_pb_1.Address();
+        this.source = new types_1.Address();
         this.twinId = 0;
         this.url = "";
         this.responses = new Map();
+    }
+    close() {
+        if (this.con.readyState != 3) {
+            this.con.close();
+        }
+    }
+    reconnect() {
+        if (this.con.readyState != 1) {
+            this.con.reconnect();
+        }
     }
     signEnvelope(envelope) {
         const toSign = this.challenge(envelope);
@@ -46,59 +56,66 @@ class Client {
         return sigPrefixed;
     }
     challenge(envelope) {
-        const request = envelope.getRequest();
-        const response = envelope.getResponse();
+        const request = envelope.request;
+        const response = envelope.response;
+        const err = envelope.error;
         let hash = crypto_1.default.createHash('md5')
-            .update(envelope.getUid())
-            .update(envelope.getTags())
-            .update(`${envelope.getTimestamp()}`)
-            .update(`${envelope.getExpiration()}`)
-            .update(this.challengeAddress(envelope.getSource()))
-            .update(this.challengeAddress(envelope.getDestination()));
+            .update(envelope.uid)
+            .update(envelope.tags)
+            .update(`${envelope.timestamp}`)
+            .update(`${envelope.expiration}`)
+            .update(this.challengeAddress(envelope.source))
+            .update(this.challengeAddress(envelope.destination));
         if (request) {
             hash = this.challengeRequest(request, hash);
         }
         else if (response) {
-            this.challengeResponse(response);
+            hash = this.challengeResponse(response, hash);
+        }
+        else if (err) {
+            hash = this.challengeError(err, hash);
+        }
+        if (envelope.schema) {
+            hash.update(envelope.schema);
+        }
+        if (envelope.federation) {
+            hash.update(envelope.federation);
+        }
+        if (envelope.plain) {
+            hash.update(envelope.plain);
+        }
+        else if (envelope.cipher) {
+            hash.update(envelope.cipher);
         }
         return hash.digest();
     }
     challengeAddress(address) {
-        return `${address === null || address === void 0 ? void 0 : address.getTwin()}${address === null || address === void 0 ? void 0 : address.getConnection()}`;
+        return `${address === null || address === void 0 ? void 0 : address.twin}${address === null || address === void 0 ? void 0 : address.connection}`;
+    }
+    challengeError(err, hash) {
+        return hash.update(`${err.code}${err.message}`);
     }
     challengeRequest(request, hash) {
-        return hash.update(request.getCommand()).update(request.getData());
+        return hash.update(request.command);
     }
-    challengeResponse(response) {
-        const err = response.getError();
-        const reply = response.getReply();
-        if (err) {
-            console.log(err.getCode(), err.getMessage());
-        }
-        else {
-            console.log(reply === null || reply === void 0 ? void 0 : reply.getData());
-        }
+    challengeResponse(response, hash) {
+        // to be implemented 
+        return hash;
     }
     newEnvelope(destTwinId, requestCommand, requestData, expirationMinutes) {
-        const envelope = new types_pb_1.Envelope();
-        envelope.setUid((0, uuid_1.v4)());
-        envelope.setTimestamp(Math.round(Date.now() / 1000));
-        envelope.setExpiration(expirationMinutes * 60);
-        const source = new types_pb_1.Address();
-        source.setTwin(this.twinId);
-        source.setConnection(this.source.getConnection());
-        envelope.setSource(source);
-        const destination = new types_pb_1.Address();
-        destination.setTwin(destTwinId);
-        // destination.setConnection(null);
-        envelope.setDestination(destination);
-        envelope.setSchema("application/json");
-        const request = new types_pb_1.Request();
-        request.setCommand(requestCommand);
-        request.setData(Buffer.from(JSON.stringify(requestData)));
-        envelope.setRequest(request);
-        const signature = this.signEnvelope(envelope);
-        envelope.setSignature(signature);
+        const envelope = new types_1.Envelope({
+            uid: (0, uuid_1.v4)(),
+            timestamp: Math.round(Date.now() / 1000),
+            expiration: expirationMinutes * 60,
+            source: new types_1.Address({ twin: this.twinId, connection: this.source.connection }),
+            destination: new types_1.Address({ twin: destTwinId }),
+            request: new types_1.Request({ command: requestCommand }),
+        });
+        if (requestData) {
+            envelope.plain = new Uint8Array(Buffer.from(JSON.stringify(requestData)));
+        }
+        envelope.schema = "application/json";
+        envelope.signature = this.signEnvelope(envelope);
         return envelope;
     }
     send(requestCommand, requestData, destinationTwinId, expirationMinutes) {
@@ -106,34 +123,36 @@ class Client {
         const envelope = this.newEnvelope(destinationTwinId, requestCommand, requestData, expirationMinutes);
         // send enevelope binary using socket
         this.con.send(envelope.serializeBinary());
-        console.log('envelope sent');
         // add request id to responses map on client object
-        this.responses.set(envelope.getUid(), envelope);
-        return envelope.getUid();
+        this.responses.set(envelope.uid, envelope);
+        return envelope.uid;
     }
     listen(requestID, callback) {
-        const result = setInterval(() => {
-            var _a, _b;
-            while (this.responses.get(requestID)) {
-                if ((_a = this.responses.get(requestID)) === null || _a === void 0 ? void 0 : _a.getResponse()) {
-                    const response = (_b = this.responses.get(requestID)) === null || _b === void 0 ? void 0 : _b.getResponse();
-                    const reply = response === null || response === void 0 ? void 0 : response.getReply();
-                    const err = response === null || response === void 0 ? void 0 : response.getError();
-                    this.responses.delete(requestID);
-                    if (reply) {
-                        const dataReceieved = reply.getData();
-                        const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceieved));
+        if (this.responses.get(requestID)) {
+            const result = setInterval(() => {
+                var _a, _b, _c, _d;
+                // check if envelope in map has a response 
+                if ((_a = this.responses.get(requestID)) === null || _a === void 0 ? void 0 : _a.response) {
+                    const dataReceived = (_b = this.responses.get(requestID)) === null || _b === void 0 ? void 0 : _b.plain;
+                    if (dataReceived) {
+                        const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived));
                         const responseString = JSON.parse(decodedData);
-                        clearInterval(result);
                         callback(responseString);
-                    }
-                    if (err) {
-                        const errString = `${err.getCode()} ${err.getMessage()}`;
-                        callback(errString);
+                        this.responses.delete(requestID);
+                        clearInterval(result);
                     }
                 }
-            }
-        }, 1000);
+                // check if envelope in map has an error
+                else if ((_c = this.responses.get(requestID)) === null || _c === void 0 ? void 0 : _c.error) {
+                    const err = (_d = this.responses.get(requestID)) === null || _d === void 0 ? void 0 : _d.error;
+                    if (err) {
+                        callback(`${err.code} ${err.message}`);
+                        this.responses.delete(requestID);
+                        clearInterval(result);
+                    }
+                }
+            }, 1000);
+        }
     }
     connect(url, session, mnemonics, accountType) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -149,11 +168,11 @@ class Client {
             this.con = new reconnecting_websocket_1.default(this.url, [], options);
             this.con.onmessage = (e) => {
                 console.log("waiting response...");
-                const receivedEnvelope = types_pb_1.Envelope.deserializeBinary(e.data);
+                const receivedEnvelope = types_1.Envelope.deserializeBinary(e.data);
                 //verify
-                if (this.responses.get(receivedEnvelope.getUid())) {
+                if (this.responses.get(receivedEnvelope.uid)) {
                     // update envelope in responses map
-                    this.responses.set(receivedEnvelope.getUid(), receivedEnvelope);
+                    this.responses.set(receivedEnvelope.uid, receivedEnvelope);
                 }
             };
         });
@@ -166,8 +185,8 @@ class Client {
         });
     }
     updateSource(session) {
-        this.source.setTwin(this.twinId);
-        this.source.setConnection(session);
+        this.source.twin = this.twinId;
+        this.source.connection = session;
     }
     newJWT(session) {
         const header = {
