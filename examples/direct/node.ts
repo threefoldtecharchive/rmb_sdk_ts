@@ -14,8 +14,7 @@ async function main() {
 
     // get response
     client.listen(requestID, (response: any) => { console.log(response) });
-    // const response2 = await client.receive(requestID2);
-    // console.log(response2)
+
 }
 
 
