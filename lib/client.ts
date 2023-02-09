@@ -42,13 +42,13 @@ class Client {
 
     }
     close() {
-        if (this.con.readyState != 3) {
+        if (this.con.readyState != this.con.CLOSED) {
             this.con.close();
         }
 
     }
     reconnect() {
-        if (this.con.readyState != 1) {
+        if (this.con.readyState != this.con.OPEN) {
             this.con.reconnect();
         }
 
