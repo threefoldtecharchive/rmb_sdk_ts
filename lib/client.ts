@@ -135,7 +135,6 @@ class Client {
                         const dataReceieved = reply.getData();
                         const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceieved))
                         const responseString = JSON.parse(decodedData);
-                        clearInterval(result)
                         callback(responseString);
 
                     }
@@ -143,6 +142,7 @@ class Client {
                         const errString = `${err.getCode()} ${err.getMessage()}`
                         callback(errString)
                     }
+                    clearInterval(result)
 
                 }
 
