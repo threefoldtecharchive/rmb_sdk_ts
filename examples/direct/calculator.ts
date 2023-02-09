@@ -11,8 +11,11 @@ async function main() {
 
     // send request
     const requestID = client.send("calculator.add", [10.6, 20], 1292, 5);
+
     // get response
     const response = await client.read(requestID);
+
+    // print response
     console.log(response)
 
 }

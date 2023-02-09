@@ -15,6 +15,8 @@ async function main() {
 
     // get response
     const response = await client.read(requestID);
+
+    // print response
     console.log(response)
 
 }
