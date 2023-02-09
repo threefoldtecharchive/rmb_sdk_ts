@@ -148,39 +148,43 @@ class Client {
 
     }
 
-    listen(requestID: string, callback: (x: any) => void) {
-        if (this.responses.get(requestID)) {
+    read(requestID: string) {
+        return new Promise((resolve, reject) => {
 
-            const result = setInterval(() => {
-                // check if envelope in map has a response 
-                if (this.responses.get(requestID)?.response) {
-                    const dataReceived = this.responses.get(requestID)?.plain;
-                    if (dataReceived) {
-                        const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                        const responseString = JSON.parse(decodedData);
-                        callback(responseString);
-                        this.responses.delete(requestID);
-                        clearInterval(result)
+            if (this.responses.get(requestID)) {
+
+                const result = setInterval(() => {
+                    // check if envelope in map has a response 
+                    if (this.responses.get(requestID)?.response) {
+                        const dataReceived = this.responses.get(requestID)?.plain;
+                        if (dataReceived) {
+                            const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
+                            const responseString = JSON.parse(decodedData);
+                            resolve(responseString);
+                            this.responses.delete(requestID);
+                            clearInterval(result)
+                        }
+
+                    }
+                    // check if envelope in map has an error
+                    else if (this.responses.get(requestID)?.error) {
+                        const err = this.responses.get(requestID)?.error
+                        if (err) {
+                            reject(`${err.code} ${err.message}`);
+                            this.responses.delete(requestID);
+                            clearInterval(result)
+                        }
+
+
                     }
 
-                }
-                // check if envelope in map has an error
-                else if (this.responses.get(requestID)?.error) {
-                    const err = this.responses.get(requestID)?.error
-                    if (err) {
-                        callback(`${err.code} ${err.message}`);
-                        this.responses.delete(requestID);
-                        clearInterval(result)
-                    }
 
+                }, 1000)
+            }
 
-                }
-
-
-            }, 1000)
-        }
-
+        })
     }
+
 
 
 

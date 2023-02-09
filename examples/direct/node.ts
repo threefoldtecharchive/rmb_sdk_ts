@@ -14,7 +14,8 @@ async function main() {
     const requestID = client.send("zos.statistics.get", undefined, 17, 5);
 
     // get response
-    client.listen(requestID, (response: any) => { console.log(response) });
+    const response = await client.read(requestID);
+    console.log(response)
 
 }
 
