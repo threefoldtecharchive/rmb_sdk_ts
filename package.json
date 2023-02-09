@@ -4,6 +4,8 @@
   "repository": "https://github.com/threefoldtech/rmb-sdk-ts.git",
   "author": "amiraabouhadid <amiraabouhadid@gmail.com>",
   "license": "MIT",
+  "main": "dist/lib/client.js",
+  "types": "dist/lib/client.d.ts",
   "scripts": {
     "start": "nodemon ./examples/direct/node.ts"
   },
@@ -12,6 +14,7 @@
     "@polkadot/keyring": "^10.2.6",
     "@polkadot/util-crypto": "^10.2.6",
     "base64url": "^3.0.1",
+    "buffer": "^6.0.3",
     "google-protobuf": "^3.21.2",
     "protoc-gen-ts": "^0.8.5",
     "reconnecting-websocket": "^4.4.0",
