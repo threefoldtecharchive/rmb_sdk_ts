@@ -5,7 +5,7 @@
   "author": "amiraabouhadid <amiraabouhadid@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "start": "nodemon ./examples/direct/main.ts"
+    "start": "nodemon ./examples/direct/node.ts"
   },
   "dependencies": {
     "@polkadot/api": "^9.11.3",

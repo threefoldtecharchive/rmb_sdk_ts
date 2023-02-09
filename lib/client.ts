@@ -92,7 +92,10 @@ class Client {
         envelope.setSchema("application/json");
         const request = new Request();
         request.setCommand(requestCommand);
-        request.setData(Buffer.from(JSON.stringify(requestData)));
+        if (requestData) {
+            request.setData(Buffer.from(JSON.stringify(requestData)));
+        }
+
         envelope.setRequest(request);
         const signature = this.signEnvelope(envelope)
         envelope.setSignature(signature);
@@ -105,24 +108,28 @@ class Client {
         const envelope = this.newEnvelope(destinationTwinId, requestCommand, requestData, expirationMinutes);
         // send enevelope binary using socket
         this.con.send(envelope.serializeBinary());
-        console.log('envelope sent')
         // add request id to responses map on client object
         this.responses.set(envelope.getUid(), envelope)
         return envelope.getUid();
 
     }
+    // async receive(requestID: string) {
+    //     return await this.listen(requestID, (response: string) => { return response });
+    // }
 
     listen(requestID: string, callback: (x: any) => void) {
+        if (this.responses.get(requestID)) {
+            const result = setInterval(() => {
 
-        const result = setInterval(() => {
-            while (this.responses.get(requestID)) {
 
                 if (this.responses.get(requestID)?.getResponse()) {
 
                     const response = this.responses.get(requestID)?.getResponse();
+                    this.responses.delete(requestID);
+
                     const reply = response?.getReply();
                     const err = response?.getError();
-                    this.responses.delete(requestID);
+
 
                     if (reply) {
                         const dataReceieved = reply.getData();
@@ -139,8 +146,9 @@ class Client {
 
                 }
 
-            }
-        }, 1000)
+
+            }, 1000)
+        }
 
     }
 
