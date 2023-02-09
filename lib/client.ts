@@ -8,22 +8,37 @@ import { KeypairType } from "@polkadot/util-crypto/types";
 import crypto from 'crypto';
 import base64url from "base64url";
 import Ws from 'ws';
-const CHAIN_WS = "wss://tfchain.dev.grid.tf/ws";
+
 enum KPType {
     sr25519 = "sr25519",
-    ed25519 = "ed25519"
+    ed25519 = "ed25519",
+
 }
 class Client {
     signer!: KeyringPair;
     source: Address = new Address();
     twinId: number = 0;
-    url: string = "";
     responses;
     con!: ReconnectingWebSocket;
+    mnemonics: string;
+    relayUrl: string
+    chainUrl: string
+    session: string
+    keypairType: KeypairType
 
-
-    constructor() {
+    constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
         this.responses = new Map<string, Envelope>();
+        this.mnemonics = mnemonics;
+        this.relayUrl = relayUrl;
+        this.session = session;
+        if (keypairType.toLowerCase().trim().split("")[0] == 's') {
+            this.keypairType = KPType.sr25519;
+        } else {
+            this.keypairType = KPType.ed25519
+        }
+
+        this.chainUrl = chainUrl;
+
 
     }
     close() {
@@ -169,17 +184,17 @@ class Client {
 
 
 
-    async connect(url: string, session: string, mnemonics: string, accountType: KeypairType) {
-        await this.createSigner(mnemonics, accountType);
-        await this.getTwinId(); // async;
-        this.updateUrl(url, session);
-        this.updateSource(session);
+    async connect() {
+        await this.createSigner();
+        await this.getTwinId();
+        this.updateUrl();
+        this.updateSource();
         // start websocket connection with updated url
         const options = {
             WebSocket: Ws,
             debug: true,
         }
-        this.con = new ReconnectingWebSocket(this.url, [], options);
+        this.con = new ReconnectingWebSocket(this.relayUrl, [], options);
         this.con.onmessage = (e: any) => {
             console.log("waiting response...");
 
@@ -194,14 +209,14 @@ class Client {
         }
 
     }
-    async createSigner(mnemonics: string, accountType: KeypairType) {
+    async createSigner() {
         await waitReady()
-        const keyring = new Keyring({ type: accountType });
-        this.signer = keyring.addFromMnemonic(mnemonics);
+        const keyring = new Keyring({ type: this.keypairType });
+        this.signer = keyring.addFromMnemonic(this.mnemonics);
     }
-    updateSource(session: string) {
+    updateSource() {
         this.source.twin = this.twinId;
-        this.source.connection = session;
+        this.source.connection = this.session;
     }
     newJWT(session: string) {
         const header = {
@@ -223,16 +238,16 @@ class Client {
         return token;
 
     }
-    updateUrl(url: string, session: string) {
+    updateUrl() {
         // create token from identity
-        const token = this.newJWT(session)
+        const token = this.newJWT(this.session)
 
         // update url with token
-        this.url = `${url}?${token}`;
+        this.relayUrl = `${this.relayUrl}?${token}`;
 
     }
     async getTwinId() {
-        const provider = new WsProvider(CHAIN_WS)
+        const provider = new WsProvider(this.chainUrl)
         const cl = await ApiPromise.create({ provider })
         this.twinId = Number(await cl.query.tfgridModule.twinIdByAccountID(this.signer.address));
         cl.disconnect();
