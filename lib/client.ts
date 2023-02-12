@@ -68,7 +68,7 @@ class Client {
     read(requestID: string) {
         return new Promise((resolve, reject) => {
 
-            if (this.responses.get(requestID)) {
+            if (this.responses.get(requestID)?.response) {
 
                 const result = setInterval(() => {
                     // check if envelope in map has a response 
