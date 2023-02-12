@@ -7,6 +7,7 @@ import { KeypairType } from "@polkadot/util-crypto/types";
 import base64url from "base64url";
 import Ws from 'ws';
 import ClientEnvelope from "./envelope";
+import { Buffer } from "buffer"
 
 enum KPType {
     sr25519 = "sr25519",
@@ -59,7 +60,7 @@ class Client {
     sign(payload: string | Uint8Array) {
         const typePrefix = this.signer.type === KPType.sr25519 ? "s" : "e";
         const sig = this.signer.sign(payload);
-        const prefix = Buffer.from(typePrefix).readUint8(0)
+        const prefix = Buffer.from(typePrefix).readUInt8(0)
         const sigPrefixed = new Uint8Array([prefix, ...sig]);
         return sigPrefixed;
     }
