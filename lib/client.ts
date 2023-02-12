@@ -8,12 +8,8 @@ import base64url from "base64url";
 import Ws from 'ws';
 import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
+import { sign, KPType } from './sign'
 
-enum KPType {
-    sr25519 = "sr25519",
-    ed25519 = "ed25519",
-
-}
 class Client {
     signer!: KeyringPair;
     source: Address = new Address();
@@ -57,18 +53,10 @@ class Client {
 
     }
 
-    sign(payload: string | Uint8Array) {
-        const typePrefix = this.signer.type === KPType.sr25519 ? "s" : "e";
-        const sig = this.signer.sign(payload);
-        const prefix = Buffer.from(typePrefix).readUInt8(0)
-        const sigPrefixed = new Uint8Array([prefix, ...sig]);
-        return sigPrefixed;
-    }
-
 
     send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
         // create new envelope with given data and destination
-        const envelope = new ClientEnvelope(this, destinationTwinId, requestCommand, requestData, expirationMinutes);
+        const envelope = new ClientEnvelope(this.source, this.signer, destinationTwinId, requestCommand, requestData, expirationMinutes);
         // send enevelope binary using socket
         this.con.send(envelope.serializeBinary());
         // add request id to responses map on client object
@@ -166,7 +154,7 @@ class Client {
         }
         const jwt = base64url(JSON.stringify(header)) + "." + base64url(JSON.stringify(claims));
 
-        const sigPrefixed = this.sign(jwt);
+        const sigPrefixed = sign(jwt, this.signer);
         const token = jwt + "." + base64url(Buffer.from(sigPrefixed));
         return token;
 

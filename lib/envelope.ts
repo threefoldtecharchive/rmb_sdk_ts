@@ -1,21 +1,22 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Address, Request, Envelope, Error, Response } from './types/lib/types';
 import crypto from 'crypto';
-import { Client } from './client';
 import { Buffer } from "buffer"
+import { sign } from './sign';
+import { KeyringPair } from '@polkadot/keyring/types';
 class ClientEnvelope extends Envelope {
-    client: Client;
-    constructor(client: Client, destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
+    signer: KeyringPair;
+    constructor(source: Address, signer: KeyringPair, destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
         super({
             uid: uuidv4(),
             timestamp: Math.round(Date.now() / 1000),
             expiration: expirationMinutes * 60,
-            source: client.source,
+            source: source,
             destination: new Address({ twin: destTwinId }),
             request: new Request({ command: requestCommand }),
 
         })
-        this.client = client;
+        this.signer = signer;
         if (requestData) {
             this.plain = new Uint8Array(Buffer.from(requestData));
 
@@ -26,7 +27,7 @@ class ClientEnvelope extends Envelope {
     signEnvelope() {
         const toSign = this.challenge();
 
-        return this.client.sign(toSign);
+        return sign(toSign, this.signer);
     }
 
     challenge() {
