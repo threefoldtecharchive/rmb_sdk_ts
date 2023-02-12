@@ -1,13 +1,12 @@
 import { KeyringPair } from "@polkadot/keyring/types";
 import ReconnectingWebSocket from "reconnecting-websocket";
-import { Address, Envelope, Request, Response, Error } from "./types/lib/types";
+import { Address, Envelope, Error, Response } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
-import { v4 as uuidv4 } from 'uuid';
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
-import crypto from 'crypto';
 import base64url from "base64url";
 import Ws from 'ws';
+import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
 
 enum KPType {
@@ -18,7 +17,6 @@ enum KPType {
 class Client {
     signer!: KeyringPair;
     source: Address = new Address();
-    twinId: number = 0;
     responses;
     con!: ReconnectingWebSocket;
     mnemonics: string;
@@ -26,16 +24,20 @@ class Client {
     chainUrl: string
     session: string
     keypairType: KeypairType
+    twin: any;
+
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
         this.responses = new Map<string, Envelope>();
         this.mnemonics = mnemonics;
         this.relayUrl = relayUrl;
         this.session = session;
-        if (keypairType.toLowerCase().trim().split("")[0] == 's') {
+        if (keypairType.toLowerCase().trim() == 'sr25519') {
             this.keypairType = KPType.sr25519;
-        } else {
+        } else if (keypairType.toLowerCase().trim() == 'ed25519') {
             this.keypairType = KPType.ed25519
+        } else {
+            throw new Error({ message: "Unsupported Keypair type" })
         }
 
         this.chainUrl = chainUrl;
@@ -43,22 +45,18 @@ class Client {
 
     }
     close() {
-        if (this.con.readyState != 3) {
+        if (this.con.readyState != this.con.CLOSED) {
             this.con.close();
         }
 
     }
     reconnect() {
-        if (this.con.readyState != 1) {
+        if (this.con.readyState != this.con.OPEN) {
             this.con.reconnect();
         }
 
     }
-    signEnvelope(envelope: Envelope) {
-        const toSign = this.challenge(envelope);
 
-        return this.sign(toSign);
-    }
     sign(payload: string | Uint8Array) {
         const typePrefix = this.signer.type === KPType.sr25519 ? "s" : "e";
         const sig = this.signer.sign(payload);
@@ -66,81 +64,11 @@ class Client {
         const sigPrefixed = new Uint8Array([prefix, ...sig]);
         return sigPrefixed;
     }
-    challenge(envelope: Envelope) {
-        const request = envelope.request;
-        const response = envelope.response;
-        const err = envelope.error
-
-        let hash = crypto.createHash('md5')
-            .update(envelope.uid)
-            .update(envelope.tags)
-            .update(`${envelope.timestamp}`)
-            .update(`${envelope.expiration}`)
-            .update(this.challengeAddress(envelope.source))
-            .update(this.challengeAddress(envelope.destination))
-
-        if (request) {
-            hash = this.challengeRequest(request, hash);
-        }
-        else if (response) {
-            hash = this.challengeResponse(response, hash);
-        } else if (err) {
-            hash = this.challengeError(err, hash)
-        }
-
-        if (envelope.schema) {
-            hash.update(envelope.schema);
-        }
-        if (envelope.federation) {
-            hash.update(envelope.federation)
-        }
-        if (envelope.plain) {
-            hash.update(envelope.plain)
-        } else if (envelope.cipher) {
-            hash.update(envelope.cipher)
-        }
 
 
-        return hash.digest();
-
-    }
-    challengeAddress(address: Address | undefined) {
-        return `${address?.twin}${address?.connection}`;
-
-    }
-    challengeError(err: Error, hash: crypto.Hash) {
-        return hash.update(`${err.code}${err.message}`)
-    }
-    challengeRequest(request: Request, hash: crypto.Hash) {
-        return hash.update(request.command);
-    }
-    challengeResponse(response: Response, hash: crypto.Hash) {
-        // to be implemented 
-        return hash
-
-    }
-    newEnvelope(destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
-        const envelope = new Envelope({
-            uid: uuidv4(),
-            timestamp: Math.round(Date.now() / 1000),
-            expiration: expirationMinutes * 60,
-            source: new Address({ twin: this.twinId, connection: this.source.connection }),
-            destination: new Address({ twin: destTwinId }),
-            request: new Request({ command: requestCommand }),
-        });
-
-        if (requestData) {
-            envelope.plain = new Uint8Array(Buffer.from(requestData));
-
-        }
-        envelope.schema = "application/json"
-        envelope.signature = this.signEnvelope(envelope)
-        return envelope;
-
-    }
     send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
         // create new envelope with given data and destination
-        const envelope = this.newEnvelope(destinationTwinId, requestCommand, requestData, expirationMinutes);
+        const envelope = new ClientEnvelope(this, destinationTwinId, requestCommand, requestData, expirationMinutes);
         // send enevelope binary using socket
         this.con.send(envelope.serializeBinary());
         // add request id to responses map on client object
@@ -191,7 +119,7 @@ class Client {
 
     async connect() {
         await this.createSigner();
-        await this.getTwinId();
+        await this.getTwin();
         this.updateUrl();
         this.updateSource();
         // start websocket connection with updated url
@@ -220,7 +148,7 @@ class Client {
         this.signer = keyring.addFromMnemonic(this.mnemonics);
     }
     updateSource() {
-        this.source.twin = this.twinId;
+        this.source.twin = this.twin.id;
         this.source.connection = this.session;
     }
     newJWT(session: string) {
@@ -231,7 +159,7 @@ class Client {
 
         const now = Math.ceil(Date.now().valueOf() / 1000);
         const claims = {
-            sub: this.twinId,
+            sub: this.twin.id,
             iat: now,
             exp: now + 1000,
             sid: session,
@@ -251,13 +179,13 @@ class Client {
         this.relayUrl = `${this.relayUrl}?${token}`;
 
     }
-    async getTwinId() {
+    async getTwin() {
         const provider = new WsProvider(this.chainUrl)
         const cl = await ApiPromise.create({ provider })
-        this.twinId = Number(await cl.query.tfgridModule.twinIdByAccountID(this.signer.address));
+        const twinId = Number(await cl.query.tfgridModule.twinIdByAccountID(this.signer.address));
+        this.twin = (await cl.query.tfgridModule.twins(twinId)).toJSON()
+
         cl.disconnect();
-
-
     }
 }
 export { Client };
