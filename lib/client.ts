@@ -67,7 +67,7 @@ class Client {
 
     send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
         // create new envelope with given data and destination
-        const envelope = new ClientEnvelope(this, this.source, destinationTwinId, requestCommand, requestData, expirationMinutes);
+        const envelope = new ClientEnvelope(this, destinationTwinId, requestCommand, requestData, expirationMinutes);
         // send enevelope binary using socket
         this.con.send(envelope.serializeBinary());
         // add request id to responses map on client object
