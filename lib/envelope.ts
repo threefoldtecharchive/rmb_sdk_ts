@@ -16,7 +16,7 @@ class ClientEnvelope extends Envelope {
         })
         this.client = client;
         if (requestData) {
-            this.plain = new Uint8Array(Buffer.from(JSON.stringify(requestData)));
+            this.plain = new Uint8Array(Buffer.from(requestData));
 
         }
         this.schema = "application/json"
