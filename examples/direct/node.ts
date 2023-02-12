@@ -19,6 +19,8 @@ async function main() {
     // print response
     console.log(response)
 
+    client.close();
+
 }
 
 

@@ -8,6 +8,7 @@ import { KeypairType } from "@polkadot/util-crypto/types";
 import crypto from 'crypto';
 import base64url from "base64url";
 import Ws from 'ws';
+import ClientEnvelope from "./envelope";
 
 enum KPType {
     sr25519 = "sr25519",
@@ -15,6 +16,8 @@ enum KPType {
 
 }
 class Client {
+
+
     signer!: KeyringPair;
     source: Address = new Address();
     twinId: number = 0;
@@ -26,15 +29,18 @@ class Client {
     session: string
     keypairType: KeypairType
 
+
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
         this.responses = new Map<string, Envelope>();
         this.mnemonics = mnemonics;
         this.relayUrl = relayUrl;
         this.session = session;
-        if (keypairType.toLowerCase().trim().split("")[0] == 's') {
+        if (keypairType.toLowerCase().trim() == 'sr25519') {
             this.keypairType = KPType.sr25519;
-        } else {
+        } else if (keypairType.toLowerCase().trim() == 'ed25519') {
             this.keypairType = KPType.ed25519
+        } else {
+            throw new Error({ message: "Unsupported Keypair type" })
         }
 
         this.chainUrl = chainUrl;
@@ -53,11 +59,7 @@ class Client {
         }
 
     }
-    signEnvelope(envelope: Envelope) {
-        const toSign = this.challenge(envelope);
 
-        return this.sign(toSign);
-    }
     sign(payload: string | Uint8Array) {
         const typePrefix = this.signer.type === KPType.sr25519 ? "s" : "e";
         const sig = this.signer.sign(payload);
@@ -65,81 +67,10 @@ class Client {
         const sigPrefixed = new Uint8Array([prefix, ...sig]);
         return sigPrefixed;
     }
-    challenge(envelope: Envelope) {
-        const request = envelope.request;
-        const response = envelope.response;
-        const err = envelope.error
 
-        let hash = crypto.createHash('md5')
-            .update(envelope.uid)
-            .update(envelope.tags)
-            .update(`${envelope.timestamp}`)
-            .update(`${envelope.expiration}`)
-            .update(this.challengeAddress(envelope.source))
-            .update(this.challengeAddress(envelope.destination))
-
-        if (request) {
-            hash = this.challengeRequest(request, hash);
-        }
-        else if (response) {
-            hash = this.challengeResponse(response, hash);
-        } else if (err) {
-            hash = this.challengeError(err, hash)
-        }
-
-        if (envelope.schema) {
-            hash.update(envelope.schema);
-        }
-        if (envelope.federation) {
-            hash.update(envelope.federation)
-        }
-        if (envelope.plain) {
-            hash.update(envelope.plain)
-        } else if (envelope.cipher) {
-            hash.update(envelope.cipher)
-        }
-
-
-        return hash.digest();
-
-    }
-    challengeAddress(address: Address | undefined) {
-        return `${address?.twin}${address?.connection}`;
-
-    }
-    challengeError(err: Error, hash: crypto.Hash) {
-        return hash.update(`${err.code}${err.message}`)
-    }
-    challengeRequest(request: Request, hash: crypto.Hash) {
-        return hash.update(request.command);
-    }
-    challengeResponse(response: Response, hash: crypto.Hash) {
-        // to be implemented 
-        return hash
-
-    }
-    newEnvelope(destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
-        const envelope = new Envelope({
-            uid: uuidv4(),
-            timestamp: Math.round(Date.now() / 1000),
-            expiration: expirationMinutes * 60,
-            source: new Address({ twin: this.twinId, connection: this.source.connection }),
-            destination: new Address({ twin: destTwinId }),
-            request: new Request({ command: requestCommand }),
-        });
-
-        if (requestData) {
-            envelope.plain = new Uint8Array(Buffer.from(JSON.stringify(requestData)));
-
-        }
-        envelope.schema = "application/json"
-        envelope.signature = this.signEnvelope(envelope)
-        return envelope;
-
-    }
     send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
         // create new envelope with given data and destination
-        const envelope = this.newEnvelope(destinationTwinId, requestCommand, requestData, expirationMinutes);
+        const envelope = new ClientEnvelope(this, this.source, destinationTwinId, requestCommand, requestData, expirationMinutes);
         // send enevelope binary using socket
         this.con.send(envelope.serializeBinary());
         // add request id to responses map on client object
