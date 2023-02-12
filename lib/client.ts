@@ -1,6 +1,6 @@
 import { KeyringPair } from "@polkadot/keyring/types";
 import ReconnectingWebSocket from "reconnecting-websocket";
-import { Address, Envelope, Error } from "./types/lib/types";
+import { Address, Envelope, Error, Response } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
@@ -14,11 +14,8 @@ enum KPType {
 
 }
 class Client {
-
-
     signer!: KeyringPair;
     source: Address = new Address();
-    twinId: number = 0;
     responses;
     con!: ReconnectingWebSocket;
     mnemonics: string;
@@ -26,6 +23,7 @@ class Client {
     chainUrl: string
     session: string
     keypairType: KeypairType
+    twin: any;
 
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
@@ -65,6 +63,7 @@ class Client {
         const sigPrefixed = new Uint8Array([prefix, ...sig]);
         return sigPrefixed;
     }
+
 
     send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
         // create new envelope with given data and destination
@@ -119,7 +118,7 @@ class Client {
 
     async connect() {
         await this.createSigner();
-        await this.getTwinId();
+        await this.getTwin();
         this.updateUrl();
         this.updateSource();
         // start websocket connection with updated url
@@ -148,7 +147,7 @@ class Client {
         this.signer = keyring.addFromMnemonic(this.mnemonics);
     }
     updateSource() {
-        this.source.twin = this.twinId;
+        this.source.twin = this.twin.id;
         this.source.connection = this.session;
     }
     newJWT(session: string) {
@@ -159,7 +158,7 @@ class Client {
 
         const now = Math.ceil(Date.now().valueOf() / 1000);
         const claims = {
-            sub: this.twinId,
+            sub: this.twin.id,
             iat: now,
             exp: now + 1000,
             sid: session,
@@ -179,13 +178,13 @@ class Client {
         this.relayUrl = `${this.relayUrl}?${token}`;
 
     }
-    async getTwinId() {
+    async getTwin() {
         const provider = new WsProvider(this.chainUrl)
         const cl = await ApiPromise.create({ provider })
-        this.twinId = Number(await cl.query.tfgridModule.twinIdByAccountID(this.signer.address));
+        const twinId = Number(await cl.query.tfgridModule.twinIdByAccountID(this.signer.address));
+        this.twin = (await cl.query.tfgridModule.twins(twinId)).toJSON()
+
         cl.disconnect();
-
-
     }
 }
 export { Client };
