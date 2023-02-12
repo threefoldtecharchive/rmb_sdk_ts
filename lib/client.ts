@@ -68,11 +68,12 @@ class Client {
     read(requestID: string) {
         return new Promise((resolve, reject) => {
 
-            if (this.responses.get(requestID)?.response) {
+            if (this.responses.get(requestID)) {
 
                 const result = setInterval(() => {
                     // check if envelope in map has a response 
                     if (this.responses.get(requestID)?.response) {
+
                         const dataReceived = this.responses.get(requestID)?.plain;
                         if (dataReceived) {
                             const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
