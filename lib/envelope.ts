@@ -4,12 +4,12 @@ import crypto from 'crypto';
 import { Client } from './client';
 class ClientEnvelope extends Envelope {
     client: Client;
-    constructor(client: Client, source: Address, destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
+    constructor(client: Client, destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
         super({
             uid: uuidv4(),
             timestamp: Math.round(Date.now() / 1000),
             expiration: expirationMinutes * 60,
-            source: source,
+            source: client.source,
             destination: new Address({ twin: destTwinId }),
             request: new Request({ command: requestCommand }),
 
