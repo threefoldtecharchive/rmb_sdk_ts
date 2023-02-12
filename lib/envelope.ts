@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Address, Request, Envelope, Error, Response } from './types/lib/types';
 import crypto from 'crypto';
 import { Client } from './client';
+import { Buffer } from "buffer"
 class ClientEnvelope extends Envelope {
     client: Client;
     constructor(client: Client, destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
