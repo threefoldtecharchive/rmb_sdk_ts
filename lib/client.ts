@@ -8,7 +8,8 @@ import base64url from "base64url";
 import Ws from 'ws';
 import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
-import { sign, KPType } from './sign'
+import { sign, KPType, verify } from './sign'
+
 
 class Client {
     signer!: KeyringPair;
@@ -68,19 +69,30 @@ class Client {
     read(requestID: string) {
         return new Promise((resolve, reject) => {
 
-            if (this.responses.get(requestID)?.response) {
+            if (this.responses.get(requestID)) {
 
                 const result = setInterval(() => {
                     // check if envelope in map has a response 
+
                     if (this.responses.get(requestID)?.response) {
-                        const dataReceived = this.responses.get(requestID)?.plain;
-                        if (dataReceived) {
-                            const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                            const responseString = JSON.parse(decodedData);
-                            resolve(responseString);
-                            this.responses.delete(requestID);
-                            clearInterval(result)
+                        const envelope = this.responses.get(requestID)
+                        if (envelope) {
+                            if (verify(envelope, this.twin)) {
+                                const dataReceived = this.responses.get(requestID)?.plain;
+                                if (dataReceived) {
+                                    const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
+                                    const responseString = JSON.parse(decodedData);
+                                    resolve(responseString);
+                                    this.responses.delete(requestID);
+                                    clearInterval(result)
+                                }
+                            }
+                            else {
+                                throw new Error({ message: `couldn't verify responsesignature` })
+                            }
                         }
+
+
 
                     }
                     // check if envelope in map has an error
@@ -172,7 +184,6 @@ class Client {
         const cl = await ApiPromise.create({ provider })
         const twinId = Number(await cl.query.tfgridModule.twinIdByAccountID(this.signer.address));
         this.twin = (await cl.query.tfgridModule.twins(twinId)).toJSON()
-
         cl.disconnect();
     }
 }
