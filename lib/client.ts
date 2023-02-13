@@ -125,11 +125,10 @@ class Client {
         // start websocket connection with updated url
         const options = {
             WebSocket: Ws,
-            debug: true,
+            // debug: true,
         }
         this.con = new ReconnectingWebSocket(this.relayUrl, [], options);
         this.con.onmessage = (e: any) => {
-            console.log("waiting response...");
 
             const receivedEnvelope = Envelope.deserializeBinary(e.data);
 
