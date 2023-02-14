@@ -8,7 +8,8 @@ import base64url from "base64url";
 import Ws from 'ws';
 import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
-import { sign, KPType, verify } from './sign'
+import { sign, KPType } from './sign'
+import { v4 as uuidv4 } from 'uuid';
 
 
 class Client {
@@ -25,7 +26,7 @@ class Client {
 
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
-        this.responses = new Map<string, Envelope>();
+        this.responses = new Map<string, ClientEnvelope>();
         this.mnemonics = mnemonics;
         this.relayUrl = relayUrl;
         this.session = session;
@@ -57,6 +58,10 @@ class Client {
 
     send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
         // create new envelope with given data and destination
+        const enve = new Envelope({
+            uid: uuidv4(),
+
+        });
         const envelope = new ClientEnvelope(this.source, this.signer, destinationTwinId, requestCommand, requestData, expirationMinutes);
         // send enevelope binary using socket
         this.con.send(envelope.serializeBinary());
@@ -77,16 +82,17 @@ class Client {
                     if (this.responses.get(requestID)?.response) {
                         const envelope = this.responses.get(requestID)
                         if (envelope) {
-                            if (verify(envelope, this.twin)) {
-                                const dataReceived = this.responses.get(requestID)?.plain;
-                                if (dataReceived) {
-                                    const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                                    const responseString = JSON.parse(decodedData);
-                                    resolve(responseString);
-                                    this.responses.delete(requestID);
-                                    clearInterval(result)
-                                }
+                            const verified = envelope.verify(this.twin);
+                            console.log(verified)
+                            const dataReceived = this.responses.get(requestID)?.plain;
+                            if (dataReceived) {
+                                const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
+                                const responseString = JSON.parse(decodedData);
+                                resolve(responseString);
+                                this.responses.delete(requestID);
+                                clearInterval(result)
                             }
+
                             else {
                                 throw new Error({ message: `couldn't verify responsesignature` })
                             }
@@ -125,17 +131,19 @@ class Client {
         // start websocket connection with updated url
         const options = {
             WebSocket: Ws,
-            // debug: true,
+            debug: true,
         }
         this.con = new ReconnectingWebSocket(this.relayUrl, [], options);
         this.con.onmessage = (e: any) => {
 
             const receivedEnvelope = Envelope.deserializeBinary(e.data);
-
+            // cast received enevelope to client envelope
+            const castedEnvelope = new ClientEnvelope(this.source, this.signer, receivedEnvelope.destination.twin, null, null, receivedEnvelope.expiration)
             //verify
             if (this.responses.get(receivedEnvelope.uid)) {
                 // update envelope in responses map
-                this.responses.set(receivedEnvelope.uid, receivedEnvelope)
+                this.responses.set(receivedEnvelope.uid, castedEnvelope)
+                console.log('added casted envelope')
             }
 
         }

@@ -2,20 +2,23 @@ import { v4 as uuidv4 } from 'uuid';
 import { Address, Request, Envelope, Error, Response } from './types/lib/types';
 import crypto from 'crypto';
 import { Buffer } from "buffer"
-import { sign } from './sign';
+import { KPType, sign } from './sign';
 import { KeyringPair } from '@polkadot/keyring/types';
 class ClientEnvelope extends Envelope {
     signer: KeyringPair;
-    constructor(source: Address, signer: KeyringPair, destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
+    constructor(source: Address, signer: KeyringPair, destTwinId: number, requestCommand: any, requestData: any, expirationMinutes: number) {
         super({
             uid: uuidv4(),
             timestamp: Math.round(Date.now() / 1000),
             expiration: expirationMinutes * 60,
             source: source,
             destination: new Address({ twin: destTwinId }),
-            request: new Request({ command: requestCommand }),
+
 
         })
+        if (requestCommand) {
+            this.request = new Request({ command: requestCommand })
+        }
         this.signer = signer;
         if (requestData) {
             this.plain = new Uint8Array(Buffer.from(requestData));
@@ -28,6 +31,22 @@ class ClientEnvelope extends Envelope {
         const toSign = this.challenge();
 
         return sign(toSign, this.signer);
+    }
+    async verify(twin: any) {
+
+        const prefix = new TextDecoder().decode(Buffer.from(new Uint8Array([this.signature[0]])))
+        let sigType: string;
+        if (prefix == 'e') {
+            sigType = KPType.ed25519
+        } else if (prefix == 's') {
+            sigType = KPType.sr25519
+        } else {
+            throw new Error({ message: 'invalid signature type, should be either ed25519 or sr25519' })
+        }
+        const dataHashed = this.challenge();
+        await crypto.subtle.verify(sigType, twin.pk, this.signature, dataHashed)
+
+        return true;
     }
 
     challenge() {
