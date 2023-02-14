@@ -105,7 +105,13 @@ class Client {
 
 
 
-
+    isEnvNode(): boolean {
+        return (
+            typeof process === "object" &&
+            typeof process.versions === "object" &&
+            typeof process.versions.node !== "undefined"
+        );
+    }
     async connect() {
         await this.createSigner();
         await this.getTwin();
@@ -116,7 +122,12 @@ class Client {
             WebSocket: Ws,
             // debug: true,
         }
-        this.con = new ReconnectingWebSocket(this.relayUrl, [], options);
+        if (this.isEnvNode()) {
+            this.con = new ReconnectingWebSocket(this.relayUrl, [], options);
+        } else {
+            this.con = new ReconnectingWebSocket(this.relayUrl);
+        }
+
         this.con.onmessage = (e: any) => {
 
             const receivedEnvelope = Envelope.deserializeBinary(e.data);
