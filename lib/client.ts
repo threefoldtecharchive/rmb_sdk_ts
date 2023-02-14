@@ -1,6 +1,6 @@
 import { KeyringPair } from "@polkadot/keyring/types";
 import ReconnectingWebSocket from "reconnecting-websocket";
-import { Address, Envelope, Error, Response } from "./types/lib/types";
+import { Address, Envelope, Error } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
