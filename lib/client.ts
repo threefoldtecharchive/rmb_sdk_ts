@@ -102,6 +102,10 @@ class Client {
                                     this.responses.delete(requestID);
                                     clearInterval(result)
                                 }
+                            } else {
+                                resolve("invalid signature, discarding response");
+                                this.responses.delete(requestID);
+                                clearInterval(result);
                             }
 
 
