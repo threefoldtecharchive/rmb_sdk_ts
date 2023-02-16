@@ -1,11 +1,10 @@
 import { KeyringPair } from "@polkadot/keyring/types";
 import ReconnectingWebSocket from "reconnecting-websocket";
-import { Address, Envelope, Error, Response } from "./types/lib/types";
+import { Address, Envelope, Error } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
 import base64url from "base64url";
-import Ws from 'ws';
 import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
@@ -105,18 +104,31 @@ class Client {
 
 
 
-
+    isEnvNode(): boolean {
+        return (
+            typeof process === "object" &&
+            typeof process.versions === "object" &&
+            typeof process.versions.node !== "undefined"
+        );
+    }
     async connect() {
         await this.createSigner();
         await this.getTwin();
-        this.updateUrl();
+        const url = this.updateUrl();
         this.updateSource();
         // start websocket connection with updated url
-        const options = {
-            WebSocket: Ws,
-            // debug: true,
+        if (!this.con || this.con.readyState != this.con.OPEN) {
+            if (this.isEnvNode()) {
+                const Ws = require("ws")
+                const options = {
+                    WebSocket: Ws,
+                    // debug: true,
+                }
+                this.con = new ReconnectingWebSocket(url, [], options);
+            } else {
+                this.con = new ReconnectingWebSocket(url);
+            }
         }
-        this.con = new ReconnectingWebSocket(this.relayUrl, [], options);
         this.con.onmessage = (e: any) => {
 
             const receivedEnvelope = Envelope.deserializeBinary(e.data);
@@ -164,7 +176,7 @@ class Client {
         const token = this.newJWT(this.session)
 
         // update url with token
-        this.relayUrl = `${this.relayUrl}?${token}`;
+        return `${this.relayUrl}?${token}`;
 
     }
     async getTwin() {

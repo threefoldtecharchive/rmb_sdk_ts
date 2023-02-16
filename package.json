@@ -1,25 +1,26 @@
 {
   "name": "rmb-sdk-ts",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "repository": "https://github.com/threefoldtech/rmb-sdk-ts.git",
   "author": "amiraabouhadid <amiraabouhadid@gmail.com>",
   "license": "MIT",
-  "main": "dist/lib/client.js",
-  "types": "dist/lib/client.d.ts",
+  "types": "dist/es6/client.d.ts",
+  "files": [
+    "/dist"
+  ],
   "scripts": {
-    "start": "nodemon ./examples/direct/node.ts"
+    "start": "nodemon ./examples/direct/node.ts",
+    "build": "npm-run-all es6-build node-build",
+    "node-build": "tsc --build tsconfig-node.json",
+    "es6-build": "tsc --build tsconfig-es6.json"
   },
   "dependencies": {
-    "@polkadot/api": "^9.11.3",
-    "@polkadot/keyring": "^10.2.6",
-    "@polkadot/util-crypto": "^10.2.6",
+    "@polkadot/api": "^8.9.1",
     "base64url": "^3.0.1",
     "buffer": "^6.0.3",
     "google-protobuf": "^3.21.2",
-    "protoc-gen-ts": "^0.8.5",
     "reconnecting-websocket": "^4.4.0",
-    "typescript": "^4.9.4",
-    "uuid": "^9.0.0",
+    "uuid": "^8.3.2",
     "ws": "^8.12.0"
   },
   "devDependencies": {
@@ -28,6 +29,15 @@
     "@types/uuid": "^9.0.0",
     "@types/ws": "^8.5.4",
     "nodemon": "^2.0.20",
-    "ts-node": "^10.9.1"
+    "npm-run-all": "^4.1.5",
+    "protoc-gen-ts": "^0.8.5",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.4.4"
+  },
+  "main": "./dist/node/client.js",
+  "module": "./dist/es6/client.js",
+  "exports": {
+    "require": "./dist/node/client.js",
+    "import": "./dist/es6/client.js"
   }
 }
