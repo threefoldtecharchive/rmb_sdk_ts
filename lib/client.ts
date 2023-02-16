@@ -5,7 +5,6 @@ import { waitReady } from '@polkadot/wasm-crypto';
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
 import base64url from "base64url";
-import Ws from 'ws';
 import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
@@ -115,19 +114,21 @@ class Client {
     async connect() {
         await this.createSigner();
         await this.getTwin();
-        this.updateUrl();
+        const url = this.updateUrl();
         this.updateSource();
         // start websocket connection with updated url
-        const options = {
-            WebSocket: Ws,
-            // debug: true,
+        if (!this.con || this.con.readyState != this.con.OPEN) {
+            if (this.isEnvNode()) {
+                const Ws = require("ws")
+                const options = {
+                    WebSocket: Ws,
+                    // debug: true,
+                }
+                this.con = new ReconnectingWebSocket(url, [], options);
+            } else {
+                this.con = new ReconnectingWebSocket(url);
+            }
         }
-        if (this.isEnvNode()) {
-            this.con = new ReconnectingWebSocket(this.relayUrl, [], options);
-        } else {
-            this.con = new ReconnectingWebSocket(this.relayUrl);
-        }
-
         this.con.onmessage = (e: any) => {
 
             const receivedEnvelope = Envelope.deserializeBinary(e.data);
@@ -175,7 +176,7 @@ class Client {
         const token = this.newJWT(this.session)
 
         // update url with token
-        this.relayUrl = `${this.relayUrl}?${token}`;
+        return `${this.relayUrl}?${token}`;
 
     }
     async getTwin() {
