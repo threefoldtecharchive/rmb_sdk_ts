@@ -152,14 +152,15 @@ class Client {
 
 
         this.con.onmessage = async (e: any) => {
-            const receivedEnvelope = Envelope.deserializeBinary(e.data);
-            // cast received enevelope to client envelope
-            const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl)
+
             let data: Uint8Array = e.data
             if (!this.isEnvNode()) {
                 const buffer = await new Response(e.data).arrayBuffer();
                 data = new Uint8Array(buffer)
             }
+            const receivedEnvelope = Envelope.deserializeBinary(e.data);
+            // cast received enevelope to client envelope
+            const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl)
 
             //verify
             if (this.responses.get(receivedEnvelope.uid)) {
