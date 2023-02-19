@@ -90,7 +90,8 @@ class Client {
                     }
                 }
                 await new Promise(f => setTimeout(f, 1000));
-            }
+            } 
+            reject(`Didn't get a response after ${envelope.expiration} seconds`)
         })
     }
 
