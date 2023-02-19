@@ -100,9 +100,8 @@ class Client {
                             resolve(responseString);
                         }
                     } else {
-                        reject("invalid signature, discarding response");
                         this.responses.delete(requestID);
-
+                        reject("invalid signature, discarding response");
                     }
 
                 }
