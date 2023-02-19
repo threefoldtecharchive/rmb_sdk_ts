@@ -158,7 +158,7 @@ class Client {
                 const buffer = await new Response(e.data).arrayBuffer();
                 data = new Uint8Array(buffer)
             }
-            const receivedEnvelope = Envelope.deserializeBinary(e.data);
+            const receivedEnvelope = Envelope.deserializeBinary(data);
             // cast received enevelope to client envelope
             const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl)
 
