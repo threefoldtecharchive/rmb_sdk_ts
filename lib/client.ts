@@ -65,40 +65,36 @@ class Client {
     }
 
     read(requestID: string) {
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
+            let envelope: Envelope = this.responses.get(requestID)
+            // check if envelope in map has a response  
+            const now = new Date().getTime();
+            while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
+                envelope = this.responses.get(requestID)
+                if (envelope && envelope.response) {
 
-            if (this.responses.get(requestID)) {
-
-                const result = setInterval(() => {
-                    // check if envelope in map has a response 
-                    if (this.responses.get(requestID)?.response) {
-
-                        const dataReceived = this.responses.get(requestID)?.plain;
-                        if (dataReceived) {
-                            const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                            const responseString = JSON.parse(decodedData);
-                            resolve(responseString);
-                            this.responses.delete(requestID);
-                            clearInterval(result)
-                        }
-
+                    const dataReceived = envelope.plain;
+                    if (dataReceived) {
+                        const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
+                        const responseString = JSON.parse(decodedData);
+                        this.responses.delete(requestID);
+                        resolve(responseString);
                     }
-                    // check if envelope in map has an error
-                    else if (this.responses.get(requestID)?.error) {
-                        const err = this.responses.get(requestID)?.error
-                        if (err) {
-                            reject(`${err.code} ${err.message}`);
-                            this.responses.delete(requestID);
-                            clearInterval(result)
-                        }
-
-
+                }
+                // check if envelope in map has an error
+                else if (envelope && envelope.error) {
+                    const err = envelope.error
+                    if (err) {
+                        this.responses.delete(requestID);
+                        reject(`${err.code} ${err.message}`);
                     }
-
-
-                }, 1000)
+                }
+                await new Promise(f => setTimeout(f, 1000));
             }
-
+            if (envelope && envelope.expiration) {
+                this.responses.delete(requestID);
+                reject(`Didn't get a response after ${envelope.expiration} seconds`)
+            }
         })
     }
 
@@ -114,7 +110,6 @@ class Client {
     async connect() {
         await this.createSigner();
         await this.getTwin();
-        const url = this.updateUrl();
         this.updateSource();
         // start websocket connection with updated url
         if (!this.con || this.con.readyState != this.con.OPEN) {
@@ -124,14 +119,18 @@ class Client {
                     WebSocket: Ws,
                     // debug: true,
                 }
-                this.con = new ReconnectingWebSocket(url, [], options);
+                this.con = new ReconnectingWebSocket(this.updateUrl.bind(this), [], options);
             } else {
-                this.con = new ReconnectingWebSocket(url);
+                this.con = new ReconnectingWebSocket(this.updateUrl.bind(this));
             }
         }
-        this.con.onmessage = (e: any) => {
-
-            const receivedEnvelope = Envelope.deserializeBinary(e.data);
+        this.con.onmessage = async (e: any) => {
+            let data: Uint8Array = e.data
+            if (!this.isEnvNode()) {
+                const buffer = await new Response(e.data).arrayBuffer();
+                data = new Uint8Array(buffer)
+            }
+            const receivedEnvelope = Envelope.deserializeBinary(data);
 
             //verify
             if (this.responses.get(receivedEnvelope.uid)) {
