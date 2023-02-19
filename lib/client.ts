@@ -134,7 +134,6 @@ class Client {
     async connect() {
         await this.createSigner();
         await this.getSourceTwin();
-        const url = this.updateUrl();
         this.updateSource();
         // start websocket connection with updated url
         if (!this.con || this.con.readyState != this.con.OPEN) {
