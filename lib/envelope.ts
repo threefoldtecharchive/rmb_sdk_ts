@@ -1,5 +1,5 @@
 import { Address, Request, Envelope, Error, Response } from './types/lib/types';
-import crypto from 'crypto';
+import cryptoJs from 'crypto-js';
 import { Buffer } from "buffer"
 import { KPType, sign } from './sign';
 import { KeyringPair } from '@polkadot/keyring/types';
@@ -75,7 +75,7 @@ class ClientEnvelope extends Envelope {
     }
 
     challenge() {
-        let hash = crypto.createHash('md5')
+        let hash = cryptoJs.algo.MD5.create()
             .update(this.uid)
             .update(this.tags)
             .update(`${this.timestamp}`)
@@ -99,26 +99,28 @@ class ClientEnvelope extends Envelope {
             hash.update(this.federation)
         }
         if (this.plain) {
-            hash.update(this.plain)
+            const plain = Buffer.from(this.plain).toString("hex")
+            hash.update(cryptoJs.enc.Hex.parse(plain))
         } else if (this.cipher) {
-            hash.update(this.cipher)
+            const cipher = Buffer.from(this.cipher).toString("hex")
+            hash.update(cryptoJs.enc.Hex.parse(cipher))
         }
 
 
-        return hash.digest();
+        return Buffer.from(hash.finalize().toString(), "hex")
 
     }
     challengeAddress(address: Address) {
         return `${address.twin}${address.connection}`;
 
     }
-    challengeError(err: Error, hash: crypto.Hash) {
+    challengeError(err: Error, hash) {
         return hash.update(`${err.code}${err.message}`)
     }
-    challengeRequest(request: Request, hash: crypto.Hash) {
+    challengeRequest(request: Request, hash) {
         return hash.update(request.command);
     }
-    challengeResponse(response: Response, hash: crypto.Hash) {
+    challengeResponse(response: Response, hash) {
         // to be implemented 
         return hash
 

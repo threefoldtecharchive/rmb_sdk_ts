@@ -81,54 +81,45 @@ class Client {
     }
 
     read(requestID: string) {
-        return new Promise((resolve, reject) => {
-
-            if (this.responses.get(requestID)) {
-
-                const result = setInterval(async () => {
-                    // check if envelope in map has a response 
-                    if (this.responses.get(requestID)?.response) {
-                        const envelope = this.responses.get(requestID);
-                        if (envelope) {
-
-                            const verified = await envelope.verify(envelope.signature)
-                            if (verified) {
-                                const dataReceived = this.responses.get(requestID)?.plain;
-                                if (dataReceived) {
-                                    const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                                    const responseString = JSON.parse(decodedData);
-                                    resolve(responseString);
-                                    this.responses.delete(requestID);
-                                    clearInterval(result)
-                                }
-                            } else {
-                                resolve("invalid signature, discarding response");
-                                this.responses.delete(requestID);
-                                clearInterval(result);
-                            }
+        return new Promise(async (resolve, reject) => {
+            let envelope: ClientEnvelope = this.responses.get(requestID)
+            // check if envelope in map has a response  
+            const now = new Date().getTime();
+            while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
+                envelope = this.responses.get(requestID)
+                if (envelope && envelope.response) {
 
 
-
-                        }
-
-
-                    }
-                    // check if envelope in map has an error
-                    else if (this.responses.get(requestID)?.error) {
-                        const err = this.responses.get(requestID)?.error
-                        if (err) {
-                            reject(`${err.code} ${err.message}`);
+                    const verified = await envelope.verify(envelope.signature)
+                    if (verified) {
+                        const dataReceived = envelope.plain;
+                        if (dataReceived) {
+                            const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
+                            const responseString = JSON.parse(decodedData);
                             this.responses.delete(requestID);
-                            clearInterval(result)
+                            resolve(responseString);
                         }
-
+                    } else {
+                        reject("invalid signature, discarding response");
+                        this.responses.delete(requestID);
 
                     }
 
-
-                }, 1000)
+                }
+                // check if envelope in map has an error
+                else if (envelope && envelope.error) {
+                    const err = envelope.error
+                    if (err) {
+                        this.responses.delete(requestID);
+                        reject(`${err.code} ${err.message}`);
+                    }
+                }
+                await new Promise(f => setTimeout(f, 1000));
             }
-
+            if (envelope && envelope.expiration) {
+                this.responses.delete(requestID);
+                reject(`Didn't get a response after ${envelope.expiration} seconds`)
+            }
         })
     }
 
@@ -154,15 +145,23 @@ class Client {
                     WebSocket: Ws,
                     // debug: true,
                 }
-                this.con = new ReconnectingWebSocket(url, [], options);
+                this.con = new ReconnectingWebSocket(this.updateUrl.bind(this), [], options);
             } else {
-                this.con = new ReconnectingWebSocket(url);
+                this.con = new ReconnectingWebSocket(this.updateUrl.bind(this));
             }
         }
-        this.con.onmessage = (e: any) => {
+
+
+        this.con.onmessage = async (e: any) => {
             const receivedEnvelope = Envelope.deserializeBinary(e.data);
             // cast received enevelope to client envelope
             const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl)
+            let data: Uint8Array = e.data
+            if (!this.isEnvNode()) {
+                const buffer = await new Response(e.data).arrayBuffer();
+                data = new Uint8Array(buffer)
+            }
+
             //verify
             if (this.responses.get(receivedEnvelope.uid)) {
                 // update envelope in responses map
