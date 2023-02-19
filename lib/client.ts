@@ -90,8 +90,11 @@ class Client {
                     }
                 }
                 await new Promise(f => setTimeout(f, 1000));
-            } 
-            reject(`Didn't get a response after ${envelope.expiration} seconds`)
+            }
+            if (envelope && envelope.expiration) {
+                this.responses.delete(requestID);
+                reject(`Didn't get a response after ${envelope.expiration} seconds`)
+            }
         })
     }
 
