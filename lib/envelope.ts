@@ -40,16 +40,14 @@ class ClientEnvelope extends Envelope {
     async getSenderTwin() {
         const provider = new WsProvider(this.chainUrl)
         const cl = await ApiPromise.create({ provider })
+        const twin = (await cl.query.tfgridModule.twins(this.source.twin)).toJSON();
+        if (twin) {
+            this.twin = twin
+        }
 
-        return new Promise(async (resolve, reject) => {
-
-            this.twin = (await cl.query.tfgridModule.twins(this.source.twin)).toJSON();
-            console.log(this.twin)
-            resolve(this.twin)
-            cl.disconnect();
+        cl.disconnect();
 
 
-        })
     }
     async getSigner(sigType: KeypairType) {
         await waitReady()
@@ -71,11 +69,16 @@ class ClientEnvelope extends Envelope {
         }
         // get twin of sender from twinid
         await this.getSenderTwin();
-        // get sender pk from twin , update signer to be of sender 
-        await this.getSigner(sigType);
-        // verify signature using challenge and pk
-        const dataHashed = new Uint8Array(this.challenge());
-        return this.signer.verify(dataHashed, this.signature.slice(1), this.signer.publicKey);
+        try {
+            // get sender pk from twin , update signer to be of sender 
+            await this.getSigner(sigType);
+            // verify signature using challenge and pk
+            const dataHashed = new Uint8Array(this.challenge());
+            return this.signer.verify(dataHashed, this.signature.slice(1), this.signer.publicKey);
+
+        } catch (err) {
+            console.log('invalid response source twin ID', err)
+        }
 
 
     }

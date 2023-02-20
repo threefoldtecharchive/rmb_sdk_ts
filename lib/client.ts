@@ -7,7 +7,7 @@ import { KeypairType } from "@polkadot/util-crypto/types";
 import base64url from "base64url";
 import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
-import { sign, KPType } from './sign'
+import { sign, KPType, getTwinFromTwinID } from './sign'
 import { v4 as uuidv4 } from 'uuid';
 
 
@@ -22,6 +22,7 @@ class Client {
     session: string
     keypairType: KeypairType
     twin: any;
+    destTwin: any
 
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
@@ -55,28 +56,40 @@ class Client {
     }
 
 
-    send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
+    async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
+
         // create new envelope with given data and destination
         const envelope = new Envelope({
             uid: uuidv4(),
             timestamp: Math.round(Date.now() / 1000),
             expiration: expirationMinutes * 60,
             source: this.source,
-            destination: new Address({ twin: destinationTwinId })
-        });
-        if (requestCommand) {
-            envelope.request = new Request({ command: requestCommand })
-        }
-        if (requestData) {
-            envelope.plain = new Uint8Array(Buffer.from(requestData));
 
+        });
+        // need to check if destination twinId exists first
+        this.destTwin = await getTwinFromTwinID(destinationTwinId, this.chainUrl)
+        //
+        try {
+            envelope.destination = new Address({ twin: this.destTwin.id })
+            //
+            if (requestCommand) {
+                envelope.request = new Request({ command: requestCommand })
+            }
+            if (requestData) {
+                envelope.plain = new Uint8Array(Buffer.from(requestData));
+
+            }
+            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
+            // send enevelope binary using socket
+            this.con.send(clientEnvelope.serializeBinary());
+            // add request id to responses map on client object
+            this.responses.set(clientEnvelope.uid, clientEnvelope)
+            return clientEnvelope.uid;
+
+        } catch (err) {
+            console.log('invalid destination twin:', err)
+            this.con.close();
         }
-        const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
-        // send enevelope binary using socket
-        this.con.send(clientEnvelope.serializeBinary());
-        // add request id to responses map on client object
-        this.responses.set(clientEnvelope.uid, clientEnvelope)
-        return clientEnvelope.uid;
 
     }
 
@@ -171,7 +184,8 @@ class Client {
             }
 
         } catch (err) {
-            console.log('Invalid source twin ID/mnemonic', err)
+            console.log('Invalid request source twin ID/mnemonic', err)
+            this.con.close()
         }
 
     }

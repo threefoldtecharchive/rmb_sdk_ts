@@ -11,13 +11,16 @@ async function main() {
 
 
     // send request
-    const requestID = client.send("zos.statistics.get", undefined, 25, 5);
+    const requestID = await client.send("zos.statistics.get", undefined, 17, 5);
 
-    // get response
-    const response = await client.read(requestID);
+    if (requestID) {
+        // get response
+        const response = await client.read(requestID);
 
-    // print response
-    console.log(response)
+        // print response
+        console.log(response)
+    }
+
 
     client.close();
 
