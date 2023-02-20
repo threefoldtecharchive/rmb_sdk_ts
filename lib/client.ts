@@ -87,8 +87,9 @@ class Client {
             return clientEnvelope.uid;
 
         } catch (err) {
-            console.log('invalid request:', err)
             this.con.close();
+            throw new Error({ message: `Unable to send due to ${err}` })
+
         }
 
     }
@@ -184,8 +185,8 @@ class Client {
             }
 
         } catch (err) {
-            console.log('Invalid request source twin ID/mnemonic', err)
             this.con.close()
+            throw new Error({ message: `Unable to connect due to ${err}` })
         }
 
     }
