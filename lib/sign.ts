@@ -1,7 +1,5 @@
 import { KeyringPair } from "@polkadot/keyring/types";
-import { Keyring } from '@polkadot/api'
-import { waitReady } from '@polkadot/wasm-crypto';
-import { KeypairType } from "@polkadot/util-crypto/types";
+
 export enum KPType {
     sr25519 = "sr25519",
     ed25519 = "ed25519",

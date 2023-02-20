@@ -52,9 +52,9 @@ class ClientEnvelope extends Envelope {
         this.signer = keyring.addFromAddress(this.twin.accountId);
     }
 
-    async verify(signature: Uint8Array) {
+    async verify() {
 
-        const prefix = new TextDecoder().decode(signature.slice(0, 1))
+        const prefix = new TextDecoder().decode(this.signature.slice(0, 1))
         let sigType: KeypairType
         if (prefix == 'e') {
             sigType = KPType.ed25519
@@ -69,7 +69,7 @@ class ClientEnvelope extends Envelope {
         await this.getSigner(sigType);
         // verify signature using challenge and pk
         const dataHashed = new Uint8Array(this.challenge());
-        return this.signer.verify(dataHashed, signature.slice(1), this.signer.publicKey);
+        return this.signer.verify(dataHashed, this.signature.slice(1), this.signer.publicKey);
 
 
     }

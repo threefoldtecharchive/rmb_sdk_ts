@@ -90,7 +90,7 @@ class Client {
                 if (envelope && envelope.response) {
 
 
-                    const verified = await envelope.verify(envelope.signature)
+                    const verified = await envelope.verify()
                     if (verified) {
                         const dataReceived = envelope.plain;
                         if (dataReceived) {
