@@ -67,7 +67,7 @@ class Client {
                 source: this.source,
 
             });
-            // need to check if destination twinId exists on chian first
+            // need to check if destination twinId exists by fetching dest twin from chain first
             this.destTwin = await getTwinFromTwinID(destinationTwinId, this.chainUrl)
 
             envelope.destination = new Address({ twin: this.destTwin.id })
