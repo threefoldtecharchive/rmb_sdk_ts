@@ -1,6 +1,6 @@
 import { KeyringPair } from "@polkadot/keyring/types";
 
-import { ApiPromise, WsProvider } from '@polkadot/api'
+
 
 
 export enum KPType {
@@ -18,12 +18,6 @@ export function sign(payload: string | Uint8Array, signer: KeyringPair) {
 
 
 }
-export async function getTwinFromTwinID(twinId: number, chainUrl: string) {
-    const provider = new WsProvider(chainUrl)
-    const cl = await ApiPromise.create({ provider })
-    const twin = (await cl.query.tfgridModule.twins(twinId)).toJSON();
-    cl.disconnect();
-    return twin;
-}
+
 
 

@@ -2,13 +2,14 @@ import { KeyringPair } from "@polkadot/keyring/types";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { Address, Envelope, Error, Request } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
-import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
+import { Keyring } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
 import base64url from "base64url";
 import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
-import { sign, KPType, getTwinFromTwinID } from './sign'
+import { sign, KPType } from './sign'
 import { v4 as uuidv4 } from 'uuid';
+import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
 
 
 class Client {
@@ -57,21 +58,20 @@ class Client {
 
 
     async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
-
-        // create new envelope with given data and destination
-        const envelope = new Envelope({
-            uid: uuidv4(),
-            timestamp: Math.round(Date.now() / 1000),
-            expiration: expirationMinutes * 60,
-            source: this.source,
-
-        });
-        // need to check if destination twinId exists first
-        this.destTwin = await getTwinFromTwinID(destinationTwinId, this.chainUrl)
-        //
         try {
+            // create new envelope with given data and destination
+            const envelope = new Envelope({
+                uid: uuidv4(),
+                timestamp: Math.round(Date.now() / 1000),
+                expiration: expirationMinutes * 60,
+                source: this.source,
+
+            });
+            // need to check if destination twinId exists on chian first
+            this.destTwin = await getTwinFromTwinID(destinationTwinId, this.chainUrl)
+
             envelope.destination = new Address({ twin: this.destTwin.id })
-            //
+
             if (requestCommand) {
                 envelope.request = new Request({ command: requestCommand })
             }
@@ -87,7 +87,7 @@ class Client {
             return clientEnvelope.uid;
 
         } catch (err) {
-            console.log('invalid destination twin:', err)
+            console.log('invalid request:', err)
             this.con.close();
         }
 
@@ -145,9 +145,9 @@ class Client {
         );
     }
     async connect() {
-        await this.createSigner();
-        await this.getSourceTwin();
         try {
+            await this.createSigner();
+            this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
             this.updateSource();
             // start websocket connection with updated url
             if (!this.con || this.con.readyState != this.con.OPEN) {
@@ -195,11 +195,8 @@ class Client {
         this.signer = keyring.addFromMnemonic(this.mnemonics);
     }
     updateSource() {
-
         this.source.twin = this.twin.id;
         this.source.connection = this.session;
-
-
     }
     newJWT(session: string) {
         const header = {
@@ -229,19 +226,7 @@ class Client {
         return `${this.relayUrl}?${token}`;
 
     }
-    async getSourceTwin() {
-        const provider = new WsProvider(this.chainUrl)
-        const cl = await ApiPromise.create({ provider })
-        const twinId = Number(await cl.query.tfgridModule.twinIdByAccountID(this.signer.address));
-        const twin = (await cl.query.tfgridModule.twins(twinId)).toJSON();
-        if (twin) {
-            this.twin = twin;
-        }
 
-
-        cl.disconnect();
-
-    }
 
 }
 export { Client };

@@ -6,6 +6,7 @@ import { KeyringPair } from '@polkadot/keyring/types';
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import { waitReady } from '@polkadot/wasm-crypto';
 import { KeypairType } from '@polkadot/util-crypto/types';
+import { getTwinFromTwinID } from './util';
 class ClientEnvelope extends Envelope {
     signer!: KeyringPair;
     chainUrl: string;
@@ -37,18 +38,7 @@ class ClientEnvelope extends Envelope {
 
         return sign(toSign, this.signer);
     }
-    async getSenderTwin() {
-        const provider = new WsProvider(this.chainUrl)
-        const cl = await ApiPromise.create({ provider })
-        const twin = (await cl.query.tfgridModule.twins(this.source.twin)).toJSON();
-        if (twin) {
-            this.twin = twin
-        }
 
-        cl.disconnect();
-
-
-    }
     async getSigner(sigType: KeypairType) {
         await waitReady()
 
@@ -57,19 +47,18 @@ class ClientEnvelope extends Envelope {
     }
 
     async verify() {
-
-        const prefix = new TextDecoder().decode(this.signature.slice(0, 1))
-        let sigType: KeypairType
-        if (prefix == 'e') {
-            sigType = KPType.ed25519
-        } else if (prefix == 's') {
-            sigType = KPType.sr25519
-        } else {
-            return false;
-        }
-        // get twin of sender from twinid
-        await this.getSenderTwin();
         try {
+            const prefix = new TextDecoder().decode(this.signature.slice(0, 1))
+            let sigType: KeypairType
+            if (prefix == 'e') {
+                sigType = KPType.ed25519
+            } else if (prefix == 's') {
+                sigType = KPType.sr25519
+            } else {
+                return false;
+            }
+            // get twin of sender from twinid
+            this.twin = await getTwinFromTwinID(this.source.twin, this.chainUrl)
             // get sender pk from twin , update signer to be of sender 
             await this.getSigner(sigType);
             // verify signature using challenge and pk
@@ -77,7 +66,7 @@ class ClientEnvelope extends Envelope {
             return this.signer.verify(dataHashed, this.signature.slice(1), this.signer.publicKey);
 
         } catch (err) {
-            console.log('invalid response source twin ID', err)
+            console.log('invalid response', err)
         }
 
 
