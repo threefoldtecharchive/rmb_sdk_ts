@@ -2,10 +2,10 @@ import { Client } from "../../lib/client";
 
 
 async function main() {
-    // create client 
-    const client = new Client("wss://tfchain.dev.grid.tf/ws", `wss://relay.dev.grid.tf/`, "drama govern gossip audit mixed silent voice mule wonder protect latin idea", "test_client", 'sr25519')
 
     try {
+        // create client 
+        const client = new Client("wss://tfchain.dev.grid.tf/ws", `wss://relay.dev.grid.tf/`, "drama govern gossip audit mixed silent voice mule wonder protect latin idea", "test_client", 'sr25519')
 
         // connect socket
         await client.connect()
@@ -15,12 +15,13 @@ async function main() {
         const response = await client.read(requestID);
         // print response
         console.log(response)
+        client.close();
 
     } catch (err) {
 
         throw new Error(`RMB Client connection failed due to ${err}`)
     }
-    client.close();
+
 
 }
 
