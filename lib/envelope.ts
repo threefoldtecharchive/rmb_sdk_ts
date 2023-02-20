@@ -1,34 +1,77 @@
-import { v4 as uuidv4 } from 'uuid';
 import { Address, Request, Envelope, Error, Response } from './types/lib/types';
 import cryptoJs from 'crypto-js';
 import { Buffer } from "buffer"
-import { sign } from './sign';
+import { KPType, sign } from './sign';
 import { KeyringPair } from '@polkadot/keyring/types';
-
+import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
+import { waitReady } from '@polkadot/wasm-crypto';
+import { KeypairType } from '@polkadot/util-crypto/types';
 class ClientEnvelope extends Envelope {
-    signer: KeyringPair;
-    constructor(source: Address, signer: KeyringPair, destTwinId: number, requestCommand: string, requestData: any, expirationMinutes: number) {
+    signer!: KeyringPair;
+    chainUrl: string;
+    twin: any;
+    constructor(signer: KeyringPair | undefined, envelope: Envelope, chainUrl: string) {
         super({
-            uid: uuidv4(),
-            timestamp: Math.round(Date.now() / 1000),
-            expiration: expirationMinutes * 60,
-            source: source,
-            destination: new Address({ twin: destTwinId }),
-            request: new Request({ command: requestCommand }),
+            uid: envelope.uid,
+            timestamp: envelope.timestamp,
+            expiration: envelope.expiration,
+            source: envelope.source,
+            destination: envelope.destination,
+            response: envelope.response,
+            request: envelope.request,
+            error: envelope.error,
+            plain: envelope.plain,
+            signature: envelope.signature
 
-        })
-        this.signer = signer;
-        if (requestData) {
-            this.plain = new Uint8Array(Buffer.from(requestData));
-
-        }
+        });
+        this.chainUrl = chainUrl;
         this.schema = "application/json"
-        this.signature = this.signEnvelope()
+        if (signer) {
+            this.signer = signer;
+            this.signature = this.signEnvelope()
+        }
+
     }
     signEnvelope() {
         const toSign = this.challenge();
 
         return sign(toSign, this.signer);
+    }
+    async getSenderTwin() {
+        const provider = new WsProvider(this.chainUrl)
+        const cl = await ApiPromise.create({ provider })
+
+        this.twin = (await cl.query.tfgridModule.twins(this.source.twin)).toJSON();
+        cl.disconnect();
+
+    }
+    async getSigner(sigType: KeypairType) {
+        await waitReady()
+
+        const keyring = new Keyring({ type: sigType });
+        this.signer = keyring.addFromAddress(this.twin.accountId);
+    }
+
+    async verify() {
+
+        const prefix = new TextDecoder().decode(this.signature.slice(0, 1))
+        let sigType: KeypairType
+        if (prefix == 'e') {
+            sigType = KPType.ed25519
+        } else if (prefix == 's') {
+            sigType = KPType.sr25519
+        } else {
+            return false;
+        }
+        // get twin of sender from twinid
+        await this.getSenderTwin();
+        // get sender pk from twin , update signer to be of sender 
+        await this.getSigner(sigType);
+        // verify signature using challenge and pk
+        const dataHashed = new Uint8Array(this.challenge());
+        return this.signer.verify(dataHashed, this.signature.slice(1), this.signer.publicKey);
+
+
     }
 
     challenge() {

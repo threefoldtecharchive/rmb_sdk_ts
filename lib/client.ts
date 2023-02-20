@@ -1,6 +1,6 @@
 import { KeyringPair } from "@polkadot/keyring/types";
 import ReconnectingWebSocket from "reconnecting-websocket";
-import { Address, Envelope, Error } from "./types/lib/types";
+import { Address, Envelope, Error, Request } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
@@ -8,6 +8,8 @@ import base64url from "base64url";
 import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
+import { v4 as uuidv4 } from 'uuid';
+
 
 class Client {
     signer!: KeyringPair;
@@ -23,7 +25,7 @@ class Client {
 
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
-        this.responses = new Map<string, Envelope>();
+        this.responses = new Map<string, ClientEnvelope>();
         this.mnemonics = mnemonics;
         this.relayUrl = relayUrl;
         this.session = session;
@@ -55,31 +57,53 @@ class Client {
 
     send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
         // create new envelope with given data and destination
-        const envelope = new ClientEnvelope(this.source, this.signer, destinationTwinId, requestCommand, requestData, expirationMinutes);
+        const envelope = new Envelope({
+            uid: uuidv4(),
+            timestamp: Math.round(Date.now() / 1000),
+            expiration: expirationMinutes * 60,
+            source: this.source,
+            destination: new Address({ twin: destinationTwinId })
+        });
+        if (requestCommand) {
+            envelope.request = new Request({ command: requestCommand })
+        }
+        if (requestData) {
+            envelope.plain = new Uint8Array(Buffer.from(requestData));
+
+        }
+        const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
         // send enevelope binary using socket
-        this.con.send(envelope.serializeBinary());
+        this.con.send(clientEnvelope.serializeBinary());
         // add request id to responses map on client object
-        this.responses.set(envelope.uid, envelope)
-        return envelope.uid;
+        this.responses.set(clientEnvelope.uid, clientEnvelope)
+        return clientEnvelope.uid;
 
     }
 
     read(requestID: string) {
         return new Promise(async (resolve, reject) => {
-            let envelope: Envelope = this.responses.get(requestID)
+            let envelope: ClientEnvelope = this.responses.get(requestID)
             // check if envelope in map has a response  
             const now = new Date().getTime();
             while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
                 envelope = this.responses.get(requestID)
                 if (envelope && envelope.response) {
 
-                    const dataReceived = envelope.plain;
-                    if (dataReceived) {
-                        const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                        const responseString = JSON.parse(decodedData);
+
+                    const verified = await envelope.verify()
+                    if (verified) {
+                        const dataReceived = envelope.plain;
+                        if (dataReceived) {
+                            const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
+                            const responseString = JSON.parse(decodedData);
+                            this.responses.delete(requestID);
+                            resolve(responseString);
+                        }
+                    } else {
                         this.responses.delete(requestID);
-                        resolve(responseString);
+                        reject("invalid signature, discarding response");
                     }
+
                 }
                 // check if envelope in map has an error
                 else if (envelope && envelope.error) {
@@ -109,7 +133,7 @@ class Client {
     }
     async connect() {
         await this.createSigner();
-        await this.getTwin();
+        await this.getSourceTwin();
         this.updateSource();
         // start websocket connection with updated url
         if (!this.con || this.con.readyState != this.con.OPEN) {
@@ -124,18 +148,23 @@ class Client {
                 this.con = new ReconnectingWebSocket(this.updateUrl.bind(this));
             }
         }
+
+
         this.con.onmessage = async (e: any) => {
+
             let data: Uint8Array = e.data
             if (!this.isEnvNode()) {
                 const buffer = await new Response(e.data).arrayBuffer();
                 data = new Uint8Array(buffer)
             }
             const receivedEnvelope = Envelope.deserializeBinary(data);
+            // cast received enevelope to client envelope
+            const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl)
 
             //verify
             if (this.responses.get(receivedEnvelope.uid)) {
                 // update envelope in responses map
-                this.responses.set(receivedEnvelope.uid, receivedEnvelope)
+                this.responses.set(receivedEnvelope.uid, castedEnvelope)
             }
 
         }
@@ -178,14 +207,15 @@ class Client {
         return `${this.relayUrl}?${token}`;
 
     }
-    async getTwin() {
+    async getSourceTwin() {
         const provider = new WsProvider(this.chainUrl)
         const cl = await ApiPromise.create({ provider })
         const twinId = Number(await cl.query.tfgridModule.twinIdByAccountID(this.signer.address));
-        this.twin = (await cl.query.tfgridModule.twins(twinId)).toJSON()
-
+        this.twin = (await cl.query.tfgridModule.twins(twinId)).toJSON();
         cl.disconnect();
+
     }
+
 }
 export { Client };
 
