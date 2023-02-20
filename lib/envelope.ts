@@ -41,9 +41,15 @@ class ClientEnvelope extends Envelope {
         const provider = new WsProvider(this.chainUrl)
         const cl = await ApiPromise.create({ provider })
 
-        this.twin = (await cl.query.tfgridModule.twins(this.source.twin)).toJSON();
-        cl.disconnect();
+        return new Promise(async (resolve, reject) => {
 
+            this.twin = (await cl.query.tfgridModule.twins(this.source.twin)).toJSON();
+            console.log(this.twin)
+            resolve(this.twin)
+            cl.disconnect();
+
+
+        })
     }
     async getSigner(sigType: KeypairType) {
         await waitReady()
