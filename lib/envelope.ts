@@ -13,6 +13,7 @@ class ClientEnvelope extends Envelope {
     constructor(signer: KeyringPair | undefined, envelope: Envelope, chainUrl: string) {
         super({
             uid: envelope.uid,
+            tags: envelope.tags,
             timestamp: envelope.timestamp,
             expiration: envelope.expiration,
             source: envelope.source,
@@ -20,8 +21,11 @@ class ClientEnvelope extends Envelope {
             response: envelope.response,
             request: envelope.request,
             error: envelope.error,
-            plain: envelope.plain,
-            signature: envelope.signature
+            signature: envelope.signature,
+            schema: envelope.schema,
+            plain: envelope.plain.length != 0 ? envelope.plain : undefined,
+            cipher: envelope.cipher.length != 0 ? envelope.cipher : undefined,
+            federation: envelope.federation || undefined,
 
         });
         this.chainUrl = chainUrl;
