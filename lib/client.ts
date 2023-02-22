@@ -87,7 +87,7 @@ class Client {
             return clientEnvelope.uid;
 
         } catch (err) {
-            this.con.close();
+
             throw new Error({ message: `Unable to send due to ${err}` })
 
         }
