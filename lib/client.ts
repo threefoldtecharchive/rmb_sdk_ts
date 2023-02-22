@@ -43,6 +43,49 @@ class Client {
 
 
     }
+    async connect() {
+        try {
+            if (!this.con || this.con.readyState != this.con.OPEN) {
+                await this.createSigner();
+                this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
+                this.updateSource();
+                if (this.isEnvNode()) {
+                    const Ws = require("ws")
+                    const options = {
+                        WebSocket: Ws,
+                        // debug: true,
+                    }
+                    this.con = new ReconnectingWebSocket(this.updateUrl.bind(this), [], options);
+                } else {
+                    this.con = new ReconnectingWebSocket(this.updateUrl.bind(this));
+                }
+            }
+
+            this.con.onmessage = async (e: any) => {
+
+                let data: Uint8Array = e.data
+                if (!this.isEnvNode()) {
+                    const buffer = await new Response(e.data).arrayBuffer();
+                    data = new Uint8Array(buffer)
+                }
+                const receivedEnvelope = Envelope.deserializeBinary(data);
+                // cast received enevelope to client envelope
+                const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl)
+
+                //verify
+                if (this.responses.get(receivedEnvelope.uid)) {
+                    // update envelope in responses map
+                    this.responses.set(receivedEnvelope.uid, castedEnvelope)
+                }
+
+            }
+
+        } catch (err) {
+            this.con.close()
+            throw new Error({ message: `Unable to connect due to ${err}` })
+        }
+
+    }
     close() {
         if (this.con.readyState != this.con.CLOSED) {
             this.con.close();
@@ -145,51 +188,7 @@ class Client {
             typeof process.versions.node !== "undefined"
         );
     }
-    async connect() {
-        try {
-            await this.createSigner();
-            this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
-            this.updateSource();
-            // start websocket connection with updated url
-            if (!this.con || this.con.readyState != this.con.OPEN) {
-                if (this.isEnvNode()) {
-                    const Ws = require("ws")
-                    const options = {
-                        WebSocket: Ws,
-                        // debug: true,
-                    }
-                    this.con = new ReconnectingWebSocket(this.updateUrl.bind(this), [], options);
-                } else {
-                    this.con = new ReconnectingWebSocket(this.updateUrl.bind(this));
-                }
-            }
 
-
-            this.con.onmessage = async (e: any) => {
-
-                let data: Uint8Array = e.data
-                if (!this.isEnvNode()) {
-                    const buffer = await new Response(e.data).arrayBuffer();
-                    data = new Uint8Array(buffer)
-                }
-                const receivedEnvelope = Envelope.deserializeBinary(data);
-                // cast received enevelope to client envelope
-                const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl)
-
-                //verify
-                if (this.responses.get(receivedEnvelope.uid)) {
-                    // update envelope in responses map
-                    this.responses.set(receivedEnvelope.uid, castedEnvelope)
-                }
-
-            }
-
-        } catch (err) {
-            this.con.close()
-            throw new Error({ message: `Unable to connect due to ${err}` })
-        }
-
-    }
     async createSigner() {
         await waitReady()
         const keyring = new Keyring({ type: this.keypairType });
