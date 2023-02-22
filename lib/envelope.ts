@@ -66,7 +66,7 @@ class ClientEnvelope extends Envelope {
             return this.signer.verify(dataHashed, this.signature.slice(1), this.signer.publicKey);
 
         } catch (err) {
-            console.log('invalid response', err)
+            console.log('invalid destination twin', err)
         }
 
 
