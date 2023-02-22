@@ -81,7 +81,9 @@ class Client {
             }
 
         } catch (err) {
-            this.con.close()
+            if (this.con && this.con.readyState == this.con.OPEN) {
+                this.con.close()
+            }
             throw new Error({ message: `Unable to connect due to ${err}` })
         }
 
