@@ -141,18 +141,17 @@ class Client {
 
             }
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
-            if (this.con.readyState != this.con.OPEN) {
+            while (!this.con || this.con.readyState != this.con.OPEN) {
                 try {
                     await this.waitForOpenConnection();
-                    this.con.send(clientEnvelope.serializeBinary());
+
                 } catch (er) {
                     this.createConnection()
-                    await this.waitForOpenConnection();
-                    this.con.send(clientEnvelope.serializeBinary());
                 }
-            } else {
-                this.con.send(clientEnvelope.serializeBinary());
             }
+
+            this.con.send(clientEnvelope.serializeBinary());
+
 
             // add request id to responses map on client object
             this.responses.set(clientEnvelope.uid, clientEnvelope)
