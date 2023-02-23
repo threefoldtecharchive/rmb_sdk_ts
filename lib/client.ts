@@ -9,7 +9,7 @@ import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
 import { v4 as uuidv4 } from 'uuid';
 import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
-import WebSocket from "ws";
+
 
 
 class Client {
@@ -51,7 +51,6 @@ class Client {
                 this.updateSource();
                 if (this.isEnvNode()) {
                     const Ws = require("ws")
-
                     this.con = new Ws(this.updateUrl());
                 } else {
                     this.con = new WebSocket(this.updateUrl());
