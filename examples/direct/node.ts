@@ -18,7 +18,7 @@ async function main() {
     } catch (err) {
         throw new Error(`RMB Client connection failed due to ${err}`)
     } finally {
-        client.close();
+        client.con.close();
     }
 
 

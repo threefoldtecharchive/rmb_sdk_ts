@@ -1,5 +1,4 @@
 import { KeyringPair } from "@polkadot/keyring/types";
-import ReconnectingWebSocket from "reconnecting-websocket";
 import { Address, Envelope, Error, Request } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { Keyring } from '@polkadot/api'
@@ -10,13 +9,14 @@ import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
 import { v4 as uuidv4 } from 'uuid';
 import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
+import WebSocket from "ws";
 
 
 class Client {
     signer!: KeyringPair;
     source: Address = new Address();
     responses;
-    con!: ReconnectingWebSocket;
+    con!: WebSocket;
     mnemonics: string;
     relayUrl: string
     chainUrl: string
@@ -49,16 +49,8 @@ class Client {
                 await this.createSigner();
                 this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
                 this.updateSource();
-                if (this.isEnvNode()) {
-                    const Ws = require("ws")
-                    const options = {
-                        WebSocket: Ws,
-                        // debug: true,
-                    }
-                    this.con = new ReconnectingWebSocket(this.updateUrl.bind(this), [], options);
-                } else {
-                    this.con = new ReconnectingWebSocket(this.updateUrl.bind(this));
-                }
+                this.con = new WebSocket(this.updateUrl());
+
             }
 
             this.con.onmessage = async (e: any) => {
@@ -88,21 +80,29 @@ class Client {
         }
 
     }
-    close() {
-        if (this.con.readyState != this.con.CLOSED) {
-            this.con.close();
-        }
 
+
+    waitForOpenConnection = () => {
+        return new Promise((resolve, reject) => {
+            const maxNumberOfAttempts = 10
+            const intervalTime = 200 //ms
+
+            let currentAttempt = 0
+            const interval = setInterval(() => {
+                if (currentAttempt > maxNumberOfAttempts - 1) {
+                    clearInterval(interval)
+                    reject(new Error({ message: 'Maximum number of attempts exceeded' }))
+                } else if (this.con.readyState === this.con.OPEN) {
+                    clearInterval(interval)
+                    resolve("connected")
+                }
+                currentAttempt++
+            }, intervalTime)
+        })
     }
-    reconnect() {
-        if (this.con.readyState != this.con.OPEN) {
-            this.con.reconnect();
-        }
-
-    }
-
 
     async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
+
         try {
             // create new envelope with given data and destination
             const envelope = new Envelope({
@@ -125,8 +125,17 @@ class Client {
 
             }
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
-            // send enevelope binary using socket
-            this.con.send(clientEnvelope.serializeBinary());
+            if (this.con.readyState != this.con.OPEN) {
+                try {
+                    await this.waitForOpenConnection();
+                    this.con.send(clientEnvelope.serializeBinary());
+                } catch (er) {
+                    console.log(er);
+                }
+            } else {
+                this.con.send(clientEnvelope.serializeBinary());
+            }
+
             // add request id to responses map on client object
             this.responses.set(clientEnvelope.uid, clientEnvelope)
             return clientEnvelope.uid;
