@@ -97,7 +97,7 @@ class Client {
     close() {
         this.con.close();
     }
-    waitForOpenConnection = () => {
+    waitForOpenConnection() {
         return new Promise((resolve, reject) => {
             const maxNumberOfAttempts = 10
             const intervalTime = 100 //ms
