@@ -24,6 +24,7 @@ class Client {
     keypairType: KeypairType
     twin: any;
     destTwin: any
+    url: string;
 
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
@@ -101,6 +102,7 @@ class Client {
                     clearInterval(interval)
                     reject(new Error({ message: 'Maximum number of attempts exceeded' }))
                 } else if (this.con.readyState === this.con.OPEN) {
+                    this.url = this.updateUrl()
                     clearInterval(interval)
                     resolve("connected")
                 }
@@ -243,6 +245,7 @@ class Client {
 
         // update url with token
         return `${this.relayUrl}?${token}`;
+
 
     }
 
