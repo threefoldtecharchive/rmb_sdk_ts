@@ -1,5 +1,4 @@
 import { KeyringPair } from "@polkadot/keyring/types";
-import ReconnectingWebSocket from "reconnecting-websocket";
 import { Address, Envelope, Error, Request } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { Keyring } from '@polkadot/api'
@@ -12,11 +11,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
 
 
+
 class Client {
     signer!: KeyringPair;
     source: Address = new Address();
     responses;
-    con!: ReconnectingWebSocket;
+    con!: WebSocket;
     mnemonics: string;
     relayUrl: string
     chainUrl: string
@@ -24,6 +24,7 @@ class Client {
     keypairType: KeypairType
     twin: any;
     destTwin: any
+
 
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
@@ -43,24 +44,14 @@ class Client {
 
 
     }
-    async connect() {
+    createConnection() {
         try {
-            if (!this.con || this.con.readyState != this.con.OPEN) {
-                await this.createSigner();
-                this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
-                this.updateSource();
-                if (this.isEnvNode()) {
-                    const Ws = require("ws")
-                    const options = {
-                        WebSocket: Ws,
-                        // debug: true,
-                    }
-                    this.con = new ReconnectingWebSocket(this.updateUrl.bind(this), [], options);
-                } else {
-                    this.con = new ReconnectingWebSocket(this.updateUrl.bind(this));
-                }
+            if (this.isEnvNode()) {
+                const Ws = require("ws")
+                this.con = new Ws(this.updateUrl());
+            } else {
+                this.con = new WebSocket(this.updateUrl());
             }
-
             this.con.onmessage = async (e: any) => {
 
                 let data: Uint8Array = e.data
@@ -79,7 +70,18 @@ class Client {
                 }
 
             }
-
+        } catch (err) {
+            throw new Error({ message: `Unable to create websocket connection due to ${err}` })
+        }
+    }
+    async connect() {
+        try {
+            if (!this.con || this.con.readyState != this.con.OPEN) {
+                await this.createSigner();
+                this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
+                this.updateSource();
+                this.createConnection()
+            }
         } catch (err) {
             if (this.con && this.con.readyState == this.con.OPEN) {
                 this.con.close()
@@ -88,21 +90,35 @@ class Client {
         }
 
     }
-    close() {
-        if (this.con.readyState != this.con.CLOSED) {
-            this.con.close();
-        }
-
-    }
     reconnect() {
-        if (this.con.readyState != this.con.OPEN) {
-            this.con.reconnect();
-        }
 
+        this.connect()
     }
+    close() {
+        this.con.close();
+    }
+    waitForOpenConnection() {
+        return new Promise((resolve, reject) => {
+            const maxNumberOfAttempts = 10
+            const intervalTime = 100 //ms
 
+            let currentAttempt = 0
+            const interval = setInterval(() => {
+                if (currentAttempt > maxNumberOfAttempts - 1) {
+                    clearInterval(interval)
+                    reject(new Error({ message: 'Maximum number of attempts exceeded' }))
+                } else if (this.con.readyState === this.con.OPEN) {
+                    // this.updateUrl.bind(this)
+                    clearInterval(interval)
+                    resolve("connected")
+                }
+                currentAttempt++
+            }, intervalTime)
+        })
+    }
 
     async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
+
         try {
             // create new envelope with given data and destination
             const envelope = new Envelope({
@@ -125,8 +141,18 @@ class Client {
 
             }
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
-            // send enevelope binary using socket
+            while (this.con.readyState != this.con.OPEN) {
+                try {
+                    await this.waitForOpenConnection();
+
+                } catch (er) {
+                    this.createConnection()
+                }
+            }
+
             this.con.send(clientEnvelope.serializeBinary());
+
+
             // add request id to responses map on client object
             this.responses.set(clientEnvelope.uid, clientEnvelope)
             return clientEnvelope.uid;
@@ -226,6 +252,7 @@ class Client {
 
         // update url with token
         return `${this.relayUrl}?${token}`;
+
 
     }
 
