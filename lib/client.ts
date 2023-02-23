@@ -147,6 +147,8 @@ class Client {
                     this.con.send(clientEnvelope.serializeBinary());
                 } catch (er) {
                     this.createConnection()
+                    await this.waitForOpenConnection();
+                    this.con.send(clientEnvelope.serializeBinary());
                 }
             } else {
                 this.con.send(clientEnvelope.serializeBinary());
