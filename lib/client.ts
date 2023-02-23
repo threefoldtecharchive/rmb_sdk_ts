@@ -50,7 +50,12 @@ class Client {
                 await this.createSigner();
                 this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
                 this.updateSource();
-                this.reconnect()
+                if (this.isEnvNode()) {
+                    const Ws = require("ws")
+                    this.con = new Ws(this.updateUrl());
+                } else {
+                    this.con = new WebSocket(this.updateUrl());
+                }
 
 
             }
@@ -84,12 +89,7 @@ class Client {
     }
     reconnect() {
 
-        if (this.isEnvNode()) {
-            const Ws = require("ws")
-            this.con = new Ws(this.updateUrl());
-        } else {
-            this.con = new WebSocket(this.updateUrl());
-        }
+        this.connect()
     }
     close() {
         this.con.close();
@@ -103,8 +103,9 @@ class Client {
             const interval = setInterval(() => {
                 if (currentAttempt > maxNumberOfAttempts - 1) {
                     clearInterval(interval)
-                    reject(new Error({ message: 'Maximum number of attempts exceeded, token has expired' }))
+                    reject(new Error({ message: 'Maximum number of attempts exceeded' }))
                 } else if (this.con.readyState === this.con.OPEN) {
+                    // this.updateUrl.bind(this)
                     clearInterval(interval)
                     resolve("connected")
                 }
@@ -142,7 +143,7 @@ class Client {
                     await this.waitForOpenConnection();
                     this.con.send(clientEnvelope.serializeBinary());
                 } catch (er) {
-                    this.reconnect()
+                    this.connect()
                 }
             } else {
                 this.con.send(clientEnvelope.serializeBinary());
