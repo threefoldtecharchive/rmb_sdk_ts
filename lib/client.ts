@@ -44,22 +44,14 @@ class Client {
 
 
     }
-    async connect() {
+    createConnection() {
         try {
-            if (!this.con || this.con.readyState != this.con.OPEN) {
-                await this.createSigner();
-                this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
-                this.updateSource();
-                if (this.isEnvNode()) {
-                    const Ws = require("ws")
-                    this.con = new Ws(this.updateUrl());
-                } else {
-                    this.con = new WebSocket(this.updateUrl());
-                }
-
-
+            if (this.isEnvNode()) {
+                const Ws = require("ws")
+                this.con = new Ws(this.updateUrl());
+            } else {
+                this.con = new WebSocket(this.updateUrl());
             }
-
             this.con.onmessage = async (e: any) => {
 
                 let data: Uint8Array = e.data
@@ -78,7 +70,18 @@ class Client {
                 }
 
             }
-
+        } catch (err) {
+            throw new Error({ message: `Unable to create websocket connection due to ${err}` })
+        }
+    }
+    async connect() {
+        try {
+            if (!this.con || this.con.readyState != this.con.OPEN) {
+                await this.createSigner();
+                this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
+                this.updateSource();
+                this.createConnection()
+            }
         } catch (err) {
             if (this.con && this.con.readyState == this.con.OPEN) {
                 this.con.close()
@@ -143,7 +146,7 @@ class Client {
                     await this.waitForOpenConnection();
                     this.con.send(clientEnvelope.serializeBinary());
                 } catch (er) {
-                    this.connect()
+                    this.createConnection()
                 }
             } else {
                 this.con.send(clientEnvelope.serializeBinary());
