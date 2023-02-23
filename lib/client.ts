@@ -103,7 +103,7 @@ class Client {
             const interval = setInterval(() => {
                 if (currentAttempt > maxNumberOfAttempts - 1) {
                     clearInterval(interval)
-                    reject(new Error({ message: 'Maximum number of attempts exceeded' }))
+                    reject(new Error({ message: 'Maximum number of attempts exceeded, token has expired' }))
                 } else if (this.con.readyState === this.con.OPEN) {
                     clearInterval(interval)
                     resolve("connected")
