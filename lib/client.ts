@@ -81,7 +81,9 @@ class Client {
 
     }
 
-
+    close() {
+        this.con.close();
+    }
     waitForOpenConnection = () => {
         return new Promise((resolve, reject) => {
             const maxNumberOfAttempts = 10
