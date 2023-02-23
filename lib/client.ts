@@ -98,16 +98,17 @@ class Client {
         this.con.close();
     }
     waitForOpenConnection = () => {
-        return new Promise(function (resolve, reject) {
+        return new Promise((resolve, reject) => {
             const maxNumberOfAttempts = 10
             const intervalTime = 100 //ms
 
             let currentAttempt = 0
-            const interval = setInterval(function () {
+            const interval = setInterval(() => {
                 if (currentAttempt > maxNumberOfAttempts - 1) {
                     clearInterval(interval)
                     reject(new Error({ message: 'Maximum number of attempts exceeded' }))
                 } else if (this.con.readyState === this.con.OPEN) {
+                    // this.updateUrl.bind(this)
                     clearInterval(interval)
                     resolve("connected")
                 }
