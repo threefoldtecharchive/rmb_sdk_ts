@@ -141,7 +141,7 @@ class Client {
 
             }
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
-            while (!this.con || this.con.readyState != this.con.OPEN) {
+            while (this.con.readyState != this.con.OPEN) {
                 try {
                     await this.waitForOpenConnection();
 
