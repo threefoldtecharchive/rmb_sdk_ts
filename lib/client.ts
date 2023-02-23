@@ -24,7 +24,7 @@ class Client {
     keypairType: KeypairType
     twin: any;
     destTwin: any
-    url: string;
+
 
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
@@ -50,12 +50,7 @@ class Client {
                 await this.createSigner();
                 this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
                 this.updateSource();
-                if (this.isEnvNode()) {
-                    const Ws = require("ws")
-                    this.con = new Ws(this.updateUrl());
-                } else {
-                    this.con = new WebSocket(this.updateUrl());
-                }
+                this.reconnect()
 
 
             }
@@ -87,14 +82,22 @@ class Client {
         }
 
     }
+    reconnect() {
 
+        if (this.isEnvNode()) {
+            const Ws = require("ws")
+            this.con = new Ws(this.updateUrl());
+        } else {
+            this.con = new WebSocket(this.updateUrl());
+        }
+    }
     close() {
         this.con.close();
     }
     waitForOpenConnection = () => {
         return new Promise((resolve, reject) => {
             const maxNumberOfAttempts = 10
-            const intervalTime = 200 //ms
+            const intervalTime = 100 //ms
 
             let currentAttempt = 0
             const interval = setInterval(() => {
@@ -102,7 +105,6 @@ class Client {
                     clearInterval(interval)
                     reject(new Error({ message: 'Maximum number of attempts exceeded' }))
                 } else if (this.con.readyState === this.con.OPEN) {
-                    this.url = this.updateUrl()
                     clearInterval(interval)
                     resolve("connected")
                 }
@@ -140,7 +142,7 @@ class Client {
                     await this.waitForOpenConnection();
                     this.con.send(clientEnvelope.serializeBinary());
                 } catch (er) {
-                    console.log(er);
+                    this.reconnect()
                 }
             } else {
                 this.con.send(clientEnvelope.serializeBinary());
