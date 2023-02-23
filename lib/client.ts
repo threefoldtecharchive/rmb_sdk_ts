@@ -49,7 +49,14 @@ class Client {
                 await this.createSigner();
                 this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
                 this.updateSource();
-                this.con = new WebSocket(this.updateUrl());
+                if (this.isEnvNode()) {
+                    const Ws = require("ws")
+
+                    this.con = new Ws(this.updateUrl());
+                } else {
+                    this.con = new WebSocket(this.updateUrl());
+                }
+
 
             }
 
