@@ -146,7 +146,6 @@ class Client {
             }
             if (requestData) {
                 if (this.destTwin.pk) {
-                    console.log('enable e2e');
                     envelope.cipher = this.encrypt(requestData)
                 } else {
                     envelope.plain = new Uint8Array(Buffer.from(requestData));
