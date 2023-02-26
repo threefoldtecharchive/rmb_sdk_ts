@@ -9,8 +9,7 @@ import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
 import { v4 as uuidv4 } from 'uuid';
 import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
-
-
+import Cryptr from 'cryptr';
 
 class Client {
     signer!: KeyringPair;
@@ -24,6 +23,7 @@ class Client {
     keypairType: KeypairType
     twin: any;
     destTwin: any
+    crypt: any
 
 
 
@@ -116,7 +116,14 @@ class Client {
             }, intervalTime)
         })
     }
-
+    encrypt(data: any) {
+        this.crypt = new Cryptr(this.signer.publicKey);
+        const encryptedData = this.crypt.encrypt(data);
+        return new Uint8Array(Buffer.from(encryptedData))
+    }
+    decrypt(data: any) {
+        return this.crypt.decrypt(data);
+    }
     async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
 
         try {
@@ -131,13 +138,20 @@ class Client {
             // need to check if destination twinId exists by fetching dest twin from chain first
             this.destTwin = await getTwinFromTwinID(destinationTwinId, this.chainUrl)
 
+
             envelope.destination = new Address({ twin: this.destTwin.id })
 
             if (requestCommand) {
                 envelope.request = new Request({ command: requestCommand })
             }
             if (requestData) {
-                envelope.plain = new Uint8Array(Buffer.from(requestData));
+                if (this.destTwin.pk) {
+                    console.log('enable e2e');
+                    envelope.cipher = this.encrypt(requestData)
+                } else {
+                    envelope.plain = new Uint8Array(Buffer.from(requestData));
+                }
+
 
             }
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
