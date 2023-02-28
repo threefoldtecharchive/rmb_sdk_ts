@@ -13,6 +13,7 @@ import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
 
 
 class Client {
+    static connections = new Map<string, Client>();
     signer!: KeyringPair;
     source: Address = new Address();
     responses;
@@ -75,12 +76,30 @@ class Client {
         }
     }
     async connect() {
+        const key = `${this.relayUrl}:${this.mnemonics}:${this.keypairType}`;
+        if (Client.connections.has(key)) {
+            return Client.connections.get(key);
+        }
+
         try {
             if (!this.con || this.con.readyState != this.con.OPEN) {
                 await this.createSigner();
                 this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
                 this.updateSource();
                 this.createConnection()
+                Client.connections.set(key, this);
+            }
+
+            if (this.isEnvNode()) {
+                process.on("SIGTERM", this.disconnectAndExit);
+                process.on("SIGINT", this.disconnectAndExit);
+                process.on("SIGUSR1", this.disconnectAndExit);
+                process.on("SIGUSR2", this.disconnectAndExit);
+            } else {
+                window.onbeforeunload = () => {
+                    return "";
+                };
+                window.onunload = this.disconnect;
             }
         } catch (err) {
             if (this.con && this.con.readyState == this.con.OPEN) {
@@ -90,6 +109,18 @@ class Client {
         }
 
     }
+
+    disconnect() {
+        for (const connection of Client.connections.values()) {
+            connection.con.close()
+        }
+    }
+
+    disconnectAndExit() {
+        this.disconnect();
+        process.exit(0);
+    }
+
     reconnect() {
 
         this.connect()
