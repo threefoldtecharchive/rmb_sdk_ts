@@ -81,15 +81,13 @@ class Client {
         }
     }
     async connect() {
-        if (this.con.readyState === this.con.OPEN) return;
+        if (this.con && this.con.readyState === this.con.OPEN) return;
 
         try {
-            if (!this.con || this.con.readyState != this.con.OPEN) {
-                await this.createSigner();
-                this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
-                this.updateSource();
-                this.createConnection()
-            }
+            await this.createSigner();
+            this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
+            this.updateSource();
+            this.createConnection()
 
             if (this.isEnvNode()) {
                 process.on("SIGTERM", this.disconnectAndExit);
