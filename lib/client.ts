@@ -150,11 +150,11 @@ class Client {
                 }
             }
 
-            this.con.send(clientEnvelope.serializeBinary());
-
-
             // add request id to responses map on client object
             this.responses.set(clientEnvelope.uid, clientEnvelope)
+            
+            this.con.send(clientEnvelope.serializeBinary());
+            
             return clientEnvelope.uid;
 
         } catch (err) {
