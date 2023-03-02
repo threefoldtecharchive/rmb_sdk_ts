@@ -81,7 +81,7 @@ class Client {
         }
     }
     async connect() {
-        if (this.con && this.con.readyState === this.con.OPEN) return;
+        if (this.con) return;
 
         try {
             await this.createSigner();
