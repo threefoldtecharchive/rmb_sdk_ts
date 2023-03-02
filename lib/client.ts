@@ -29,6 +29,11 @@ class Client {
 
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
+        const key = `${this.relayUrl}:${this.mnemonics}:${this.keypairType}`;
+        if (Client.connections.has(key)) {
+            return Client.connections.get(key) as Client;
+        }
+
         this.responses = new Map<string, ClientEnvelope>();
         this.mnemonics = mnemonics;
         this.relayUrl = relayUrl;
@@ -43,7 +48,7 @@ class Client {
 
         this.chainUrl = chainUrl;
 
-
+        Client.connections.set(key, this);
     }
     createConnection() {
         try {
@@ -76,18 +81,12 @@ class Client {
         }
     }
     async connect() {
-        const key = `${this.relayUrl}:${this.mnemonics}:${this.keypairType}`;
-        if (Client.connections.has(key)) {
-            return Client.connections.get(key);
-        }
-
         try {
             if (!this.con || this.con.readyState != this.con.OPEN) {
                 await this.createSigner();
                 this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
                 this.updateSource();
                 this.createConnection()
-                Client.connections.set(key, this);
             }
 
             if (this.isEnvNode()) {
