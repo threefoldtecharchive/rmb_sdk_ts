@@ -149,7 +149,7 @@ class Client {
         })
     }
 
-    async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number, retries?: number) {
+    async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number, retries: number = this.retries) {
 
         try {
             // create new envelope with given data and destination
@@ -173,14 +173,13 @@ class Client {
 
             }
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
-            const defaultRetries = retries || this.retries;
-            let currentRetries = 0;
-            while (this.con.readyState != this.con.OPEN && defaultRetries >= currentRetries++) {
+            let retriesCount = 0;
+            while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
                 try {
                     await this.waitForOpenConnection();
                 } catch (er) {
-                    if (retries === defaultRetries) {
-                        throw new Error(`Failed to open connection after try for ${defaultRetries} times.`)
+                    if (retries === retriesCount) {
+                        throw new Error(`Failed to open connection after try for ${retriesCount} times.`)
                     }
                     this.createConnection()
                 }
