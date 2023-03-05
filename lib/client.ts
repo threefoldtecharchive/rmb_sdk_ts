@@ -25,10 +25,12 @@ class Client {
     keypairType: KeypairType
     twin: any;
     destTwin: any
+    retries: number;
 
 
+    constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string, retries: number) {
+        this.retries = retries > 0 ? retries : 5;
 
-    constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
         const key = `${this.relayUrl}:${this.mnemonics}:${this.keypairType}`;
         if (Client.connections.has(key)) {
             return Client.connections.get(key) as Client;
@@ -147,7 +149,7 @@ class Client {
         })
     }
 
-    async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
+    async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number, retries?: number) {
 
         try {
             // create new envelope with given data and destination
@@ -171,11 +173,15 @@ class Client {
 
             }
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
-            while (this.con.readyState != this.con.OPEN) {
+            const defaultRetries = retries || this.retries;
+            let currentRetries = 0;
+            while (this.con.readyState != this.con.OPEN && defaultRetries >= currentRetries++) {
                 try {
                     await this.waitForOpenConnection();
-
                 } catch (er) {
+                    if (retries === defaultRetries) {
+                        throw new Error(`Failed to open connection after try for ${defaultRetries} times.`)
+                    }
                     this.createConnection()
                 }
             }
