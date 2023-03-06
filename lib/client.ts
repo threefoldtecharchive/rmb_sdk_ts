@@ -9,7 +9,7 @@ import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
 import { v4 as uuidv4 } from 'uuid';
 import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
-import Cryptr from 'cryptr';
+import { mnemonicToSeedSync, } from "bip39";
 
 class Client {
     signer!: KeyringPair;
@@ -23,15 +23,14 @@ class Client {
     keypairType: KeypairType
     twin: any;
     destTwin: any
-    crypt: any
-
-
+    privKey: Uint8Array
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
         this.responses = new Map<string, ClientEnvelope>();
         this.mnemonics = mnemonics;
         this.relayUrl = relayUrl;
         this.session = session;
+        this.privKey = new Uint8Array(mnemonicToSeedSync(mnemonics)).slice(0, 32)
         if (keypairType.toLowerCase().trim() == 'sr25519') {
             this.keypairType = KPType.sr25519;
         } else if (keypairType.toLowerCase().trim() == 'ed25519') {
@@ -61,7 +60,7 @@ class Client {
                 }
                 const receivedEnvelope = Envelope.deserializeBinary(data);
                 // cast received enevelope to client envelope
-                const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl)
+                const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl, undefined, undefined, undefined, this.privKey);
 
                 //verify
                 if (this.responses.get(receivedEnvelope.uid)) {
@@ -116,14 +115,8 @@ class Client {
             }, intervalTime)
         })
     }
-    encrypt(data: any) {
-        this.crypt = new Cryptr(this.signer.publicKey);
-        const encryptedData = this.crypt.encrypt(data);
-        return new Uint8Array(Buffer.from(encryptedData))
-    }
-    decrypt(data: any) {
-        return this.crypt.decrypt(data);
-    }
+
+
     async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
 
         try {
@@ -144,16 +137,20 @@ class Client {
             if (requestCommand) {
                 envelope.request = new Request({ command: requestCommand })
             }
-            if (requestData) {
-                if (this.destTwin.pk) {
-                    envelope.cipher = this.encrypt(requestData)
+
+
+            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, requestData, this.destTwin, this.twin, this.privKey);
+            if (this.destTwin && this.twin) {
+
+                if (this.destTwin.pk && this.twin.pk) {
+                    clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.destTwin);
+                    console.log("encrypted cipher:", clientEnvelope.cipher)
                 } else {
-                    envelope.plain = new Uint8Array(Buffer.from(requestData));
+                    clientEnvelope.plain = new Uint8Array(Buffer.from(requestData));
                 }
 
 
             }
-            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
             while (this.con.readyState != this.con.OPEN) {
                 try {
                     await this.waitForOpenConnection();
@@ -179,6 +176,7 @@ class Client {
     }
 
     read(requestID: string) {
+
         return new Promise(async (resolve, reject) => {
             let envelope: ClientEnvelope = this.responses.get(requestID)
             // check if envelope in map has a response  
@@ -186,17 +184,36 @@ class Client {
             while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
                 envelope = this.responses.get(requestID)
                 if (envelope && envelope.response) {
-
-
                     const verified = await envelope.verify()
+                    console.log(verified)
+                    console.log(envelope.cipher.length)
+                    console.log(envelope.plain.length)
                     if (verified) {
-                        const dataReceived = envelope.plain;
-                        if (dataReceived) {
-                            const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                            const responseString = JSON.parse(decodedData);
-                            this.responses.delete(requestID);
-                            resolve(responseString);
+                        if (envelope.plain.length > 0) {
+                            const dataReceived = envelope.plain;
+                            if (dataReceived) {
+                                const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
+                                const responseString = JSON.parse(decodedData);
+                                this.responses.delete(requestID);
+                                resolve(responseString);
+                            }
+                        } else if (envelope.cipher.length > 0) {
+                            // console.log('decrypting cipher')
+                            // const decryptedCipher = envelope.decrypt();
+
+                            // const res = decryptedCipher.toString()
+                            // const result = Buffer.from(res, 'hex').toString()
+                            // resolve(`result:${result}`)
+                            // const dataReceived = envelope.cipher;
+                            console.log(envelope.cipher)
+                            // if (dataReceived) {
+                            //     const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
+                            //     const responseString = JSON.parse(decodedData);
+                            //     this.responses.delete(requestID);
+                            //     resolve(responseString);
+                            // }
                         }
+
                     } else {
                         this.responses.delete(requestID);
                         reject("invalid signature, discarding response");
@@ -205,6 +222,7 @@ class Client {
                 }
                 // check if envelope in map has an error
                 else if (envelope && envelope.error) {
+
                     const err = envelope.error
                     if (err) {
                         this.responses.delete(requestID);
@@ -219,6 +237,9 @@ class Client {
             }
         })
     }
+
+
+
 
 
 
