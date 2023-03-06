@@ -60,7 +60,7 @@ class Client {
                 }
                 const receivedEnvelope = Envelope.deserializeBinary(data);
                 // cast received enevelope to client envelope
-                const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl);
+                const castedEnvelope = new ClientEnvelope(this.signer, receivedEnvelope, this.chainUrl);
 
                 //verify
                 if (this.responses.get(receivedEnvelope.uid)) {
@@ -140,8 +140,8 @@ class Client {
 
 
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
-            if (this.destTwin && this.twin) {
-
+            if (requestData) {
+                console.log(this.twin.pk)
                 if (this.destTwin.pk && this.twin.pk) {
                     clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.destTwin, this.privKey);
                     console.log("encrypted cipher:", clientEnvelope.cipher)

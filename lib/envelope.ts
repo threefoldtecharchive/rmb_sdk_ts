@@ -44,7 +44,7 @@ class ClientEnvelope extends Envelope {
 
     }
     createShared(privKey: Uint8Array, pubKey: Uint8Array) {
-        const pkey = secp256k1
+
         function hashfn(x, y) {
             const pubKey = new Uint8Array(33)
             pubKey[0] = (y[31] & 1) === 0 ? 0x02 : 0x03
@@ -111,16 +111,11 @@ class ClientEnvelope extends Envelope {
     signEnvelope() {
 
         const toSign = this.challenge();
-
+        console.log("signing address: ", this.signer.address)
         return sign(toSign, this.signer);
     }
 
-    async getSigner(sigType: KeypairType) {
-        await waitReady()
 
-        const keyring = new Keyring({ type: sigType });
-        this.signer = keyring.addFromAddress(this.twin.accountId);
-    }
 
     async verify() {
         console.log('verifying')
@@ -136,10 +131,10 @@ class ClientEnvelope extends Envelope {
             }
             // get twin of sender from twinid
             this.twin = await getTwinFromTwinID(this.source.twin, this.chainUrl)
-            // get sender pk from twin , update signer to be of sender 
-            await this.getSigner(sigType);
+
             // verify signature using challenge and pk
             const dataHashed = new Uint8Array(this.challenge());
+            console.log("verification address:", this.signer.address)
             return this.signer.verify(dataHashed, this.signature.slice(1), this.signer.publicKey);
 
         } catch (err) {
@@ -207,7 +202,7 @@ class ClientEnvelope extends Envelope {
         //     ciphertext: cipher
         // })
 
-        // const decryptedCipher = cryptoJs.AES.decrypt(cipherPar, sKey, { iv: this.iv })
+        // const decryptedCipher = cryptoJs.AES.decrypt(cipherPar, sKey, { iv: })
         // console.log("decrypted Cipher:", decryptedCipher)
         // return decryptedCipher;
     }
