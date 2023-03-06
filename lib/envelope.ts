@@ -13,9 +13,8 @@ class ClientEnvelope extends Envelope {
     signer!: KeyringPair;
     chainUrl: string;
     twin: any;
-    privKey: Uint8Array
-    iv: cryptoJs.lib.WordArray
-    constructor(signer: KeyringPair | undefined, envelope: Envelope, chainUrl: string, requestData: any, destTwin: any, sourceTwin: any, privKey: Uint8Array) {
+
+    constructor(signer: KeyringPair | undefined, envelope: Envelope, chainUrl: string) {
         super({
             uid: envelope.uid,
             tags: envelope.tags,
@@ -33,8 +32,6 @@ class ClientEnvelope extends Envelope {
             federation: envelope.federation || undefined,
 
         });
-
-        this.privKey = privKey;
 
         this.chainUrl = chainUrl;
         this.schema = "application/json"
@@ -152,11 +149,11 @@ class ClientEnvelope extends Envelope {
 
     }
 
-    async encrypt(requestData: any, destTwin: any) {
+    async encrypt(requestData: any, destTwin: any, privKey: Uint8Array) {
         // get private key from mnemonics 
         const pubKey = new Uint8Array(this.hexStringToArrayBuffer(destTwin.pk))
         // create shared key bytes[] from private key and destination pk
-        const sharedKeyBytes = this.createShared(this.privKey, pubKey);
+        const sharedKeyBytes = this.createShared(privKey, pubKey);
         // convert sharedKey to hex string
         const sharedKey = Buffer.from(sharedKeyBytes).toString('hex');
         // create cipher hex string from Uint8Array of nonce and requestData
@@ -196,23 +193,23 @@ class ClientEnvelope extends Envelope {
     }
     // needs to return wordArray decrypted
     decrypt() {
-        const pubKey = new Uint8Array(this.hexStringToArrayBuffer(this.twin.pk))
-        const sharedKeyBytes = this.createShared(this.privKey, pubKey)
+        // const pubKey = new Uint8Array(this.hexStringToArrayBuffer(this.twin.pk))
+        // const sharedKeyBytes = this.createShared(privKey, pubKey)
 
-        const sharedKey = Buffer.from(sharedKeyBytes).toString('hex');
-        const sKey = cryptoJs.enc.Hex.parse(sharedKey);
+        // const sharedKey = Buffer.from(sharedKeyBytes).toString('hex');
+        // const sKey = cryptoJs.enc.Hex.parse(sharedKey);
 
-        // convert enevelope cipher to cipherparams
-        const cipherHex = Buffer.from(this.cipher).toString('hex');
-        // console.log("cipherHex", cipherHex)
-        const cipher = cryptoJs.enc.Hex.parse(cipherHex);// wordArray
-        const cipherPar = cryptoJs.lib.CipherParams.create({
-            ciphertext: cipher
-        })
+        // // convert enevelope cipher to cipherparams
+        // const cipherHex = Buffer.from(this.cipher).toString('hex');
+        // // console.log("cipherHex", cipherHex)
+        // const cipher = cryptoJs.enc.Hex.parse(cipherHex);// wordArray
+        // const cipherPar = cryptoJs.lib.CipherParams.create({
+        //     ciphertext: cipher
+        // })
 
-        const decryptedCipher = cryptoJs.AES.decrypt(cipherPar, sKey, { iv: this.iv })
-        console.log("decrypted Cipher:", decryptedCipher)
-        return decryptedCipher;
+        // const decryptedCipher = cryptoJs.AES.decrypt(cipherPar, sKey, { iv: this.iv })
+        // console.log("decrypted Cipher:", decryptedCipher)
+        // return decryptedCipher;
     }
     challenge() {
 
