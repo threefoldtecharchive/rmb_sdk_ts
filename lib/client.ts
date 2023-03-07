@@ -10,7 +10,9 @@ import { sign, KPType } from './sign'
 import { v4 as uuidv4 } from 'uuid';
 import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
 import { mnemonicToSeedSync, } from "bip39";
-
+import crypto from 'crypto';
+import secp256k1 from 'secp256k1'
+import * as cryptoJs from 'crypto-js';
 class Client {
     signer!: KeyringPair;
     source: Address = new Address();
@@ -24,6 +26,7 @@ class Client {
     twin: any;
     destTwin: any
     privKey: Uint8Array
+    sKey: crypto.webcrypto.CryptoKey;
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
         this.responses = new Map<string, ClientEnvelope>();
@@ -60,7 +63,7 @@ class Client {
                 }
                 const receivedEnvelope = Envelope.deserializeBinary(data);
                 // cast received enevelope to client envelope
-                const castedEnvelope = new ClientEnvelope(this.signer, receivedEnvelope, this.chainUrl);
+                const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl);
 
                 //verify
                 if (this.responses.get(receivedEnvelope.uid)) {
@@ -115,8 +118,62 @@ class Client {
             }, intervalTime)
         })
     }
+    wordArrayToUint8Array(data: cryptoJs.lib.WordArray) {
+        const dataArray = new Uint8Array(data.sigBytes)
+        for (let i = 0x0; i < data.sigBytes; i++) {
+            dataArray[i] = data.words[i >>> 0x2] >>> 0x18 - i % 0x4 * 0x8 & 0xff;
+        }
+        return new Uint8Array(dataArray);
+
+    }
+    createShared(privKey: Uint8Array, pubKey: Uint8Array) {
+
+        function hashfn(x, y) {
+            const pubKey = new Uint8Array(33)
+            pubKey[0] = (y[31] & 1) === 0 ? 0x02 : 0x03
+            pubKey.set(x, 1)
+            return pubKey
+        }
+
+        // get X point of ecdh
+        const ecdhPointX = secp256k1.ecdh(pubKey, privKey, { hashfn }, Buffer.alloc(33)).toString('hex')
+        const encodedPoint = cryptoJs.enc.Hex.parse(ecdhPointX);
+
+        // update using SHA256
+        // let key = cryptoJs.SHA256(encodedPoint).toString().substring(0, 31);
+        // key = key + "\0";
+        const key = cryptoJs.SHA256(encodedPoint);
+        return this.wordArrayToUint8Array(key)
+
+    }
+    hexStringToArrayBuffer(hexString) {
+        // remove the leading 0x
+        hexString = hexString.replace(/^0x/, '');
+
+        // ensure even number of characters
+        if (hexString.length % 2 != 0) {
+            console.log('WARNING: expecting an even number of characters in the hexString');
+        }
+
+        // check for some non-hex characters
+        var bad = hexString.match(/[G-Z\s]/i);
+        if (bad) {
+            console.log('WARNING: found non-hex characters', bad);
+        }
+
+        // split the string into pairs of octets
+        var pairs = hexString.match(/[\dA-F]{2}/gi);
+
+        // convert the octets to integers
+        var integers = pairs.map(function (s) {
+            return parseInt(s, 16);
+        });
+
+        var array = new Uint8Array(integers);
 
 
+        return array.buffer;
+    }
     async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
 
         try {
@@ -140,10 +197,13 @@ class Client {
 
 
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
+
             if (requestData) {
                 console.log(this.twin.pk)
                 if (this.destTwin.pk && this.twin.pk) {
-                    clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.destTwin, this.privKey);
+
+                    clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.sKey);
+
                     console.log("encrypted cipher:", clientEnvelope.cipher)
                 } else {
                     clientEnvelope.plain = new Uint8Array(Buffer.from(requestData));
@@ -151,6 +211,10 @@ class Client {
 
 
             }
+            const pubKey = new Uint8Array(this.hexStringToArrayBuffer(this.destTwin.pk))
+            const sharedKey = this.createShared(this.privKey, pubKey)
+            this.sKey = await crypto.subtle.importKey("raw", sharedKey, 'AES-GCM', true, ["encrypt", "decrypt"])
+            console.log(this.sKey)
             while (this.con.readyState != this.con.OPEN) {
                 try {
                     await this.waitForOpenConnection();
@@ -199,19 +263,14 @@ class Client {
                             }
                         } else if (envelope.cipher.length > 0) {
                             // console.log('decrypting cipher')
-                            // const decryptedCipher = envelope.decrypt();
+                            console.log(this.sKey)
+                            const decryptedCipher = await envelope.decrypt(this.sKey);
 
                             // const res = decryptedCipher.toString()
                             // const result = Buffer.from(res, 'hex').toString()
-                            // resolve(`result:${result}`)
-                            // const dataReceived = envelope.cipher;
-                            console.log(envelope.cipher)
-                            // if (dataReceived) {
-                            //     const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                            //     const responseString = JSON.parse(decodedData);
-                            //     this.responses.delete(requestID);
-                            //     resolve(responseString);
-                            // }
+                            const result = "";
+                            resolve(`result:${result}`)
+
                         }
 
                     } else {
