@@ -179,14 +179,16 @@ class Client {
                 envelope.plain = new Uint8Array(Buffer.from(requestData));
 
             }
-            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
+            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
             let retriesCount = 0;
             while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
                 try {
                     await this.waitForOpenConnection();
                 } catch (er) {
                     if (retries === retriesCount) {
-                        throw new Error(`Failed to open connection after try for ${retriesCount} times.`)
+                        const e = new Error();
+                        e.message = `Failed to open connection after try for ${retriesCount} times.`;
+                        throw e;
                     }
                     this.createConnection()
                 }
