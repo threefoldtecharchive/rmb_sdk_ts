@@ -30,6 +30,9 @@ class Client {
     public retries: number,
     public api?: ApiPromise
   ) {
+    this.disconnectAndExit = this.disconnectAndExit.bind(this);
+    this.disconnect = this.disconnect.bind(this);
+
     this.retries = retries > 0 ? retries : 5;
 
     const key = `${this.relayUrl}:${this.mnemonics}:${this.keypairType}`;
@@ -128,6 +131,7 @@ class Client {
   }
 
   close() {
+    this.api?.disconnect();
     this.con.close();
   }
 
