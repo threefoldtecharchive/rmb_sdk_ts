@@ -61,10 +61,12 @@ class Client {
         }
         const receivedEnvelope = Envelope.deserializeBinary(data);
         // cast received enevelope to client envelope
+        await this._initApi();
         const castedEnvelope = new ClientEnvelope(
           undefined,
           receivedEnvelope,
-          this.chainUrl
+          this.chainUrl,
+          this.api!
         );
 
         //verify
@@ -179,7 +181,8 @@ class Client {
       const clientEnvelope = new ClientEnvelope(
         this.signer,
         envelope,
-        this.chainUrl
+        this.chainUrl,
+        this.api!
       );
       let retriesCount = 0;
       while (
