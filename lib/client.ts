@@ -32,6 +32,7 @@ class Client {
   ) {
     this.disconnectAndExit = this.disconnectAndExit.bind(this);
     this.disconnect = this.disconnect.bind(this);
+    this.__handleConnection = this.__handleConnection.bind(this);
 
     this.retries = retries > 0 ? retries : 5;
 
@@ -48,6 +49,10 @@ class Client {
   }
 
   createConnection() {
+    if (this.con?.readyState !== this.con?.CLOSED) {
+      this.con.close();
+    }
+
     try {
       if (this.isEnvNode()) {
         const Ws = require("ws");
@@ -116,6 +121,7 @@ class Client {
 
   disconnect() {
     this.api?.disconnect();
+    this.api?.off("disconnected", this.__handleConnection);
     for (const connection of Client.connections.values()) {
       connection.con.close();
     }
@@ -131,8 +137,9 @@ class Client {
   }
 
   close() {
-    this.api?.disconnect();
-    this.con.close();
+    this.api?.off("disconnected", this.__handleConnection);
+    if (this.api?.isConnected) this.api?.disconnect();
+    if (this.con?.readyState !== this.con?.CLOSED) this.con.close();
   }
 
   waitForOpenConnection() {
@@ -311,9 +318,15 @@ class Client {
   }
 
   private async _initApi(): Promise<void> {
-    if (this.api instanceof ApiPromise) return;
+    if (this.api) return;
+
     const provider = new WsProvider(this.chainUrl);
     this.api = await ApiPromise.create({ provider });
+    this.api.on("disconnected", this.__handleConnection);
+  }
+
+  private __handleConnection() {
+    this.api?.connect();
   }
 }
 
