@@ -11,7 +11,7 @@ class ClientEnvelope extends Envelope {
     signer!: KeyringPair;
     chainUrl: string;
     twin: any;
-    constructor(signer: KeyringPair | undefined, envelope: Envelope, chainUrl: string) {
+    constructor(signer: KeyringPair | undefined, envelope: Envelope, chainUrl: string, public api: ApiPromise) {
         super({
             uid: envelope.uid,
             tags: envelope.tags,
@@ -62,7 +62,7 @@ class ClientEnvelope extends Envelope {
                 return false;
             }
             // get twin of sender from twinid
-            this.twin = await getTwinFromTwinID(this.source.twin, this.chainUrl)
+            this.twin = await getTwinFromTwinID(this.api, this.source.twin)
             // get sender pk from twin , update signer to be of sender 
             await this.getSigner(sigType);
             // verify signature using challenge and pk
