@@ -114,8 +114,8 @@ class Client {
     }
 
     disconnect() {
-        this.api?.disconnect();
-        this.api?.off("disconnected", this.__handleConnection);
+      this.api?.off("disconnected", this.__handleConnection);
+      this.api?.disconnect();
         for (const connection of Client.connections.values()) {
             connection.con.close()
         }
