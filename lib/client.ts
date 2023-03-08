@@ -33,7 +33,7 @@ class Client {
     ) {
       this.disconnectAndExit = this.disconnectAndExit.bind(this);
       this.disconnect = this.disconnect.bind(this);
-      // this.__handleConnection = this.__handleConnection.bind(this);
+      this.__handleConnection = this.__handleConnection.bind(this);
       this.retries = retries > 0 ? retries : 5;
 
         const key = `${this.relayUrl}:${this.mnemonics}:${this.keypairType}`;
@@ -87,6 +87,7 @@ class Client {
         if (this.con) return;
 
         try {
+            await this._initApi();
             await this.createSigner();
             this.twin = await getTwinFromTwinAddress(this.api!, this.signer.address)
             this.updateSource();
