@@ -1,4 +1,4 @@
-import { Client } from "../../dist/node/client";
+import { Client } from "../../lib/client";
 
 
 async function main() {
