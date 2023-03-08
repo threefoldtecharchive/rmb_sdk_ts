@@ -9,56 +9,56 @@ import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
 import { v4 as uuidv4 } from 'uuid';
 import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
-
-
+import { WsProvider, ApiPromise } from "@polkadot/api";
+import type { WebSocket as WSConnection } from "ws";
 
 class Client {
     static connections = new Map<string, Client>();
     signer!: KeyringPair;
     source: Address = new Address();
-    responses;
-    con!: WebSocket;
-    mnemonics: string;
-    relayUrl: string
-    chainUrl: string
-    session: string
-    keypairType: KeypairType
+    responses = new Map<string, ClientEnvelope>();
+    con!: WSConnection;
     twin: any;
     destTwin: any
-    retries: number;
 
 
-    constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string, retries: number) {
-        this.retries = retries > 0 ? retries : 5;
+    constructor(
+      public chainUrl: string, 
+      public relayUrl: string, 
+      public mnemonics: string, 
+      public session: string, 
+      public keypairType: KeypairType, 
+      public retries: number, 
+      public api?: ApiPromise
+    ) {
+      this.disconnectAndExit = this.disconnectAndExit.bind(this);
+      this.disconnect = this.disconnect.bind(this);
+      // this.__handleConnection = this.__handleConnection.bind(this);
+      this.retries = retries > 0 ? retries : 5;
 
         const key = `${this.relayUrl}:${this.mnemonics}:${this.keypairType}`;
         if (Client.connections.has(key)) {
             return Client.connections.get(key) as Client;
         }
 
-        this.responses = new Map<string, ClientEnvelope>();
-        this.mnemonics = mnemonics;
-        this.relayUrl = relayUrl;
-        this.session = session;
-        if (keypairType.toLowerCase().trim() == 'sr25519') {
-            this.keypairType = KPType.sr25519;
-        } else if (keypairType.toLowerCase().trim() == 'ed25519') {
-            this.keypairType = KPType.ed25519
-        } else {
+        if (!(keypairType.toLowerCase().trim() in KPType)) {
             throw new Error({ message: "Unsupported Keypair type" })
         }
 
-        this.chainUrl = chainUrl;
-
         Client.connections.set(key, this);
     }
+
     createConnection() {
+        if (this.con?.readyState !== this.con?.CLOSED) {
+            this.con.close();
+        }
+        
         try {
             if (this.isEnvNode()) {
                 const Ws = require("ws")
                 this.con = new Ws(this.updateUrl());
             } else {
-                this.con = new WebSocket(this.updateUrl());
+                this.con = new WebSocket(this.updateUrl()) as unknown as WSConnection;
             }
             this.con.onmessage = async (e: any) => {
 
@@ -69,7 +69,8 @@ class Client {
                 }
                 const receivedEnvelope = Envelope.deserializeBinary(data);
                 // cast received enevelope to client envelope
-                const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl)
+                await this._initApi();
+                const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl, this.api!);
 
                 //verify
                 if (this.responses.get(receivedEnvelope.uid)) {
@@ -87,7 +88,7 @@ class Client {
 
         try {
             await this.createSigner();
-            this.twin = await getTwinFromTwinAddress(this.signer.address, this.chainUrl)
+            this.twin = await getTwinFromTwinAddress(this.api!, this.signer.address)
             this.updateSource();
             this.createConnection()
 
@@ -103,8 +104,9 @@ class Client {
                 window.onunload = this.disconnect;
             }
         } catch (err) {
-            if (this.con && this.con.readyState == this.con.OPEN) {
-                this.con.close()
+            const c = this.con as WSConnection;
+            if (c && c.readyState == c.OPEN) {
+              c.close();
             }
             throw new Error({ message: `Unable to connect due to ${err}` })
         }
@@ -112,6 +114,8 @@ class Client {
     }
 
     disconnect() {
+      this.api?.off("disconnected", this.__handleConnection);
+      this.api?.disconnect();
         for (const connection of Client.connections.values()) {
             connection.con.close()
         }
@@ -127,7 +131,9 @@ class Client {
         this.connect()
     }
     close() {
-        this.con.close();
+        this.api?.off("disconnected", this.__handleConnection);
+        if (this.api?.isConnected) this.api?.disconnect();
+        if (this.con?.readyState !== this.con?.CLOSED) this.con.close();
     }
     waitForOpenConnection() {
         return new Promise((resolve, reject) => {
@@ -161,7 +167,8 @@ class Client {
 
             });
             // need to check if destination twinId exists by fetching dest twin from chain first
-            this.destTwin = await getTwinFromTwinID(destinationTwinId, this.chainUrl)
+            await this._initApi();
+            this.destTwin = await getTwinFromTwinID(this.api!, destinationTwinId);
 
             envelope.destination = new Address({ twin: this.destTwin.id })
 
@@ -172,14 +179,16 @@ class Client {
                 envelope.plain = new Uint8Array(Buffer.from(requestData));
 
             }
-            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
+            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
             let retriesCount = 0;
             while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
                 try {
                     await this.waitForOpenConnection();
                 } catch (er) {
                     if (retries === retriesCount) {
-                        throw new Error(`Failed to open connection after try for ${retriesCount} times.`)
+                        const e = new Error();
+                        e.message = `Failed to open connection after try for ${retriesCount} times.`;
+                        throw e;
                     }
                     this.createConnection()
                 }
@@ -291,6 +300,19 @@ class Client {
 
     }
 
+    private async _initApi(): Promise<void> {
+      if (this.api) return;
+
+      const provider = new WsProvider(this.chainUrl);
+      this.api = await ApiPromise.create({ provider });
+      this.api.on("disconnected", this.__handleConnection);
+    }
+
+
+
+    private __handleConnection() {
+      this.api?.connect();
+    }
 
 }
 export { Client };
