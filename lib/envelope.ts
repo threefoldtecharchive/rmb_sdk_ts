@@ -1,14 +1,14 @@
 import { Address, Request, Envelope, Error, Response } from './types/lib/types';
 import { Buffer } from "buffer"
-import { KPType, sign } from './sign';
+import { createShared, KPType, sign } from './sign';
 import { KeyringPair } from '@polkadot/keyring/types';
 import { Keyring } from '@polkadot/api'
 import { waitReady } from '@polkadot/wasm-crypto';
 import { KeypairType } from '@polkadot/util-crypto/types';
-import { getTwinFromTwinID } from './util';
-import secp256k1 from 'secp256k1'
+import { getTwinFromTwinID, hexStringToArrayBuffer } from './util';
 import * as cryptoJs from 'crypto-js';
 import crypto from 'crypto';
+import aes from 'js-crypto-aes';
 class ClientEnvelope extends Envelope {
     signer!: KeyringPair;
     chainUrl: string;
@@ -99,20 +99,18 @@ class ClientEnvelope extends Envelope {
 
     }
 
-    async encrypt(requestData: any, sKey: crypto.webcrypto.CryptoKey) {
+    async encrypt(requestData: any, privKey: Uint8Array, destTwinPk: string) {
 
+        const pubKey = new Uint8Array(hexStringToArrayBuffer(destTwinPk))
+        const sharedKey = await createShared(privKey, pubKey)
+        const sKey = await crypto.subtle.importKey("raw", sharedKey, 'AES-GCM', true, ["encrypt", "decrypt"])
 
-        // create cipher hex string from Uint8Array of nonce and requestData
-
-        // create nonce of 12 bytes[] length
         const nonce = window.crypto.getRandomValues(new Uint8Array(12));
 
         // convert requestdata to Uint8Array
         const dataUint8 = new Uint8Array(Buffer.from(requestData));
 
         // encrypt cipher text with sharedkey
-
-        // const encryptedText = cryptoJs.AES.encrypt(ciph, sKey, { iv: nonceWordArr, mode: cryptoJs.mode.CBC }).ciphertext.toString() // hex
         const encryptedText = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, sKey, Buffer.from(dataUint8));
         console.log(encryptedText);
 
@@ -120,18 +118,27 @@ class ClientEnvelope extends Envelope {
         let finalArr = new Uint8Array(encryptedArr.length + nonce.length);
         finalArr.set(nonce);
         finalArr.set(encryptedArr, nonce.length);
-        // return new Uint8Array(Buffer.from(encryptedText));
+
         return finalArr
 
     }
     // needs to return wordArray decrypted
-    async decrypt(sKey: crypto.webcrypto.CryptoKey) {
+    async decrypt(privKey: Uint8Array) {
 
-        console.log(this.cipher)
-        console.log(sKey)
-        const decryptedCipher = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: this.cipher.slice(0, 12) }, sKey, Buffer.from(this.cipher))
-        console.log("decrypted Cipher:", decryptedCipher)
-        return decryptedCipher;
+        const pubKey = new Uint8Array(hexStringToArrayBuffer(this.twin.pk))
+        const sharedKey = await createShared(privKey, pubKey)
+        const sKey = await crypto.subtle.importKey("raw", sharedKey, 'AES-GCM', true, ["encrypt", "decrypt"])
+        const iv = this.cipher.slice(0, 12);
+        const data = Buffer.from(this.cipher.slice(12));
+        const key = crypto.createSecretKey(sharedKey)
+        let decipher = crypto.createDecipheriv("aes-256-gcm", key, iv)
+        let decrypted = decipher.update(data)
+        decrypted = Buffer.concat([decrypted, decipher.final()]);
+        console.log(decrypted)
+
+        // const decrypted = aes.decrypt(data, sharedKey, { name: 'AES-GCM', iv })
+        return decrypted.toString();
+
     }
     challenge() {
 
