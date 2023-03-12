@@ -86,7 +86,7 @@ class ClientEnvelope extends Envelope {
             await this.getSigner(sigType);
             // verify signature using challenge and pk
             const dataHashed = new Uint8Array(this.challenge());
-            console.log("verification address:", this.signer.address)
+
             return this.signer.verify(dataHashed, this.signature.slice(1), this.signer.publicKey);
 
         } catch (err) {
@@ -162,7 +162,6 @@ class ClientEnvelope extends Envelope {
             hash.update(cryptoJs.enc.Hex.parse(plain))
         } else if (this.cipher.length > 0) {
             const cipher = Buffer.from(this.cipher).toString("hex")
-            console.log(cipher)
             hash.update(cryptoJs.enc.Hex.parse(cipher))
         }
 

@@ -15,7 +15,7 @@ async function main() {
         // const requestID = await client.send("zos.system.version", "", 17, 5);
         const requestID = await client.send("zos.deployment.get", JSON.stringify({ "contract_id": 19038 }), 22, 5);
         // get response
-        console.log("sent", requestID)
+
         const response = await client.read(requestID);
         // print response
         console.log(response)

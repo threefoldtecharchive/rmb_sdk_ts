@@ -167,7 +167,7 @@ class Client {
                     this.createConnection()
                 }
             }
-            console.log(clientEnvelope.cipher)
+
             this.con.send(clientEnvelope.serializeBinary());
 
 
@@ -192,9 +192,7 @@ class Client {
             while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
                 envelope = this.responses.get(requestID)
                 if (envelope && envelope.response) {
-                    console.log("verifying")
                     const verified = await envelope.verify()
-                    console.log(verified)
                     if (verified) {
                         if (envelope.plain.length > 0) {
                             const dataReceived = envelope.plain;
