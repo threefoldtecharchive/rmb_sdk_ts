@@ -1,6 +1,5 @@
 import { KeyringPair } from "@polkadot/keyring/types";
 import * as secp from '@noble/secp256k1';
-import * as cryptoJs from 'crypto-js';
 import * as  bip39 from 'bip39'
 export enum KPType {
     sr25519 = "sr25519",

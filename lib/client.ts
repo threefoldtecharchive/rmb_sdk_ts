@@ -146,8 +146,6 @@ class Client {
                 if (this.destTwin.pk && this.twin.pk) {
 
                     clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.mnemonics, this.destTwin.pk);
-
-                    console.log("encrypted cipher:", clientEnvelope.cipher)
                 } else {
                     clientEnvelope.plain = new Uint8Array(Buffer.from(requestData));
                 }
