@@ -1,16 +1,18 @@
+
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import * as cryptoJs from 'crypto-js';
 export async function createGridCL(chainUrl: string) {
     const provider = new WsProvider(chainUrl)
     const cl = await ApiPromise.create({ provider })
     return cl;
+
 }
-export async function getTwinFromTwinID(twinId: number, chainUrl: string) {
-    const cl = await createGridCL(chainUrl)
-    const twin = (await cl.query.tfgridModule.twins(twinId)).toJSON();
-    cl.disconnect();
-    return twin;
+
+export async function getTwinFromTwinAddress(api: ApiPromise, address: string) {
+  const twinId = await api.query.tfgridModule.twinIdByAccountID(address);
+  return (await api.query.tfgridModule.twins(Number(twinId))).toJSON();
 }
+
 export async function getTwinFromTwinAddress(address: string, chainUrl: string) {
     const cl = await createGridCL(chainUrl)
     const twinId = Number(await cl.query.tfgridModule.twinIdByAccountID(address));
@@ -55,3 +57,4 @@ export function wordArrayToUint8Array(data: cryptoJs.lib.WordArray) {
     return new Uint8Array(dataArray);
 
 }
+
