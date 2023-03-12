@@ -1,5 +1,5 @@
 import { KeyringPair } from "@polkadot/keyring/types";
-import { Address, Envelope, Error, Request } from "./types/lib/types";
+import { Address, Envelope, Error, Ping, Request } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { Keyring } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
@@ -210,13 +210,59 @@ class Client {
 
     }
 
+    async ping(destinationTwinId: number, expirationMinutes: number, retries: number = this.retries) {
+
+        try {
+            // create new envelope with given data and destination
+            const envelope = new Envelope({
+                uid: uuidv4(),
+                timestamp: Math.round(Date.now() / 1000),
+                expiration: expirationMinutes * 60,
+                source: this.source,
+                ping: new Ping(),
+            });
+            // need to check if destination twinId exists by fetching dest twin from chain first
+            await this._initApi();
+            this.destTwin = await getTwinFromTwinID(this.api!, destinationTwinId);
+
+            envelope.destination = new Address({ twin: this.destTwin.id })
+            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
+            let retriesCount = 0;
+            while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
+                try {
+                    await this.waitForOpenConnection();
+                } catch (er) {
+                    if (retries === retriesCount) {
+                        const e = new Error();
+                        e.message = `Failed to open connection after try for ${retriesCount} times.`;
+                        throw e;
+                    }
+                    this.createConnection()
+                }
+            }
+
+            // add request id to responses map on client object
+            this.responses.set(clientEnvelope.uid, clientEnvelope)
+            
+            this.con.send(clientEnvelope.serializeBinary());
+            
+            return clientEnvelope.uid;
+
+        } catch (err) {
+
+            throw new Error({ message: `Unable to send due to ${err}` })
+
+        }
+
+    }
+
     read(requestID: string) {
         return new Promise(async (resolve, reject) => {
-            let envelope: ClientEnvelope = this.responses.get(requestID)
+            let envelope = this.responses.get(requestID) as ClientEnvelope
             // check if envelope in map has a response  
             const now = new Date().getTime();
             while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
-                envelope = this.responses.get(requestID)
+                envelope = this.responses.get(requestID) as ClientEnvelope
                 if (envelope && envelope.response) {
 
 
@@ -251,8 +297,6 @@ class Client {
             }
         })
     }
-
-
 
     isEnvNode(): boolean {
         return (
