@@ -7,7 +7,6 @@ import { waitReady } from '@polkadot/wasm-crypto';
 import { KeypairType } from '@polkadot/util-crypto/types';
 import { getTwinFromTwinID, hexStringToArrayBuffer } from './util';
 import * as cryptoJs from 'crypto-js';
-import crypto from 'crypto';
 import aes from 'js-crypto-aes';
 class ClientEnvelope extends Envelope {
     signer!: KeyringPair;
@@ -39,12 +38,15 @@ class ClientEnvelope extends Envelope {
 
         if (signer) {
             this.signer = signer;
-            this.signature = this.signEnvelope()
+
         }
 
 
     }
-
+    signEnvelope() {
+        const toSign = this.challenge();
+        return sign(toSign, this.signer);
+    }
 
 
     createNonce(size: number) {
@@ -56,12 +58,7 @@ class ClientEnvelope extends Envelope {
         return new Uint8Array([...randArr]);
 
     }
-    signEnvelope() {
 
-        const toSign = this.challenge();
-        console.log("signing address: ", this.signer.address)
-        return sign(toSign, this.signer);
-    }
 
     async getSigner(sigType: KeypairType) {
         await waitReady()
@@ -99,20 +96,21 @@ class ClientEnvelope extends Envelope {
 
     }
 
-    async encrypt(requestData: any, privKey: Uint8Array, destTwinPk: string) {
+    async encrypt(requestData: any, mnemonic: string, destTwinPk: string) {
 
         const pubKey = new Uint8Array(hexStringToArrayBuffer(destTwinPk))
-        const sharedKey = await createShared(privKey, pubKey)
-        const sKey = await crypto.subtle.importKey("raw", sharedKey, 'AES-GCM', true, ["encrypt", "decrypt"])
+        const sharedKey = await createShared(pubKey, mnemonic)
 
-        const nonce = window.crypto.getRandomValues(new Uint8Array(12));
+
+        const nonce = this.createNonce(12)
 
         // convert requestdata to Uint8Array
         const dataUint8 = new Uint8Array(Buffer.from(requestData));
 
-        // encrypt cipher text with sharedkey
-        const encryptedText = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, sKey, Buffer.from(dataUint8));
-        console.log(encryptedText);
+        // // encrypt cipher text with sharedkey
+        // const encryptedText = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, sKey, Buffer.from(dataUint8));
+        // console.log(encryptedText);
+        const encryptedText = await aes.encrypt(dataUint8, sharedKey, { name: 'AES-GCM', iv: nonce })
 
         const encryptedArr = new Uint8Array(encryptedText)
         let finalArr = new Uint8Array(encryptedArr.length + nonce.length);
@@ -123,22 +121,13 @@ class ClientEnvelope extends Envelope {
 
     }
     // needs to return wordArray decrypted
-    async decrypt(privKey: Uint8Array) {
-
+    async decrypt(mnemonic: string) {
         const pubKey = new Uint8Array(hexStringToArrayBuffer(this.twin.pk))
-        const sharedKey = await createShared(privKey, pubKey)
-        const sKey = await crypto.subtle.importKey("raw", sharedKey, 'AES-GCM', true, ["encrypt", "decrypt"])
+        const sharedKey = await createShared(pubKey, mnemonic)
         const iv = this.cipher.slice(0, 12);
         const data = Buffer.from(this.cipher.slice(12));
-        const key = crypto.createSecretKey(sharedKey)
-        let decipher = crypto.createDecipheriv("aes-256-gcm", key, iv)
-        let decrypted = decipher.update(data)
-        decrypted = Buffer.concat([decrypted, decipher.final()]);
-        console.log(decrypted)
-
-        // const decrypted = aes.decrypt(data, sharedKey, { name: 'AES-GCM', iv })
-        return decrypted.toString();
-
+        const decrypted = await aes.decrypt(data, sharedKey, { name: 'AES-GCM', iv })
+        return decrypted;
     }
     challenge() {
 
@@ -167,14 +156,13 @@ class ClientEnvelope extends Envelope {
         }
 
 
-        if (this.plain.length) {
+        if (this.plain.length > 0) {
 
             const plain = Buffer.from(this.plain).toString("hex")
             hash.update(cryptoJs.enc.Hex.parse(plain))
-        } else if (this.cipher.length) {
-
+        } else if (this.cipher.length > 0) {
             const cipher = Buffer.from(this.cipher).toString("hex")
-
+            console.log(cipher)
             hash.update(cryptoJs.enc.Hex.parse(cipher))
         }
 

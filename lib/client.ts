@@ -9,10 +9,7 @@ import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
 import { v4 as uuidv4 } from 'uuid';
 import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
-import { mnemonicToSeedSync, } from "bip39";
-import crypto from 'crypto';
 
-import * as cryptoJs from 'crypto-js';
 class Client {
     signer!: KeyringPair;
     source: Address = new Address();
@@ -25,7 +22,7 @@ class Client {
     keypairType: KeypairType
     twin: any;
     destTwin: any
-    privKey: Uint8Array
+
 
 
     constructor(chainUrl: string, relayUrl: string, mnemonics: string, session: string, keypairType: string) {
@@ -33,7 +30,7 @@ class Client {
         this.mnemonics = mnemonics;
         this.relayUrl = relayUrl;
         this.session = session;
-        this.privKey = new Uint8Array(mnemonicToSeedSync(mnemonics)).slice(0, 32)
+
         if (keypairType.toLowerCase().trim() == 'sr25519') {
             this.keypairType = KPType.sr25519;
         } else if (keypairType.toLowerCase().trim() == 'ed25519') {
@@ -120,7 +117,6 @@ class Client {
     }
 
 
-
     async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number) {
 
         try {
@@ -149,7 +145,7 @@ class Client {
 
                 if (this.destTwin.pk && this.twin.pk) {
 
-                    clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.privKey, this.destTwin.pk);
+                    clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.mnemonics, this.destTwin.pk);
 
                     console.log("encrypted cipher:", clientEnvelope.cipher)
                 } else {
@@ -157,6 +153,10 @@ class Client {
                 }
 
 
+            }
+            if (this.signer) {
+
+                clientEnvelope.signature = clientEnvelope.signEnvelope()
             }
 
             while (this.con.readyState != this.con.OPEN) {
@@ -167,7 +167,7 @@ class Client {
                     this.createConnection()
                 }
             }
-
+            console.log(clientEnvelope.cipher)
             this.con.send(clientEnvelope.serializeBinary());
 
 
@@ -192,7 +192,9 @@ class Client {
             while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
                 envelope = this.responses.get(requestID)
                 if (envelope && envelope.response) {
+                    console.log("verifying")
                     const verified = await envelope.verify()
+                    console.log(verified)
                     if (verified) {
                         if (envelope.plain.length > 0) {
                             const dataReceived = envelope.plain;
@@ -203,12 +205,10 @@ class Client {
                                 resolve(responseString);
                             }
                         } else if (envelope.cipher.length > 0) {
-                            // console.log('decrypting cipher')
-                            const decryptedCipher = await envelope.decrypt(this.privKey);
-                            console.log(decryptedCipher)
-
+                            const decryptedCipher = await envelope.decrypt(this.mnemonics);
+                            const decodedData = Buffer.from(decryptedCipher).toString()
                             this.responses.delete(requestID);
-                            resolve("responseString");
+                            resolve(decodedData);
 
                         }
 
