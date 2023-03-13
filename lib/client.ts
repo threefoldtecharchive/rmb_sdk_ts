@@ -12,6 +12,7 @@ import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
 import { WsProvider, ApiPromise } from "@polkadot/api";
 import type { WebSocket as WSConnection } from "ws";
 
+
 class Client {
     static connections = new Map<string, Client>();
     signer!: KeyringPair;
@@ -23,18 +24,18 @@ class Client {
 
 
     constructor(
-      public chainUrl: string, 
-      public relayUrl: string, 
-      public mnemonics: string, 
-      public session: string, 
-      public keypairType: KeypairType, 
-      public retries: number, 
-      public api?: ApiPromise
+        public chainUrl: string,
+        public relayUrl: string,
+        public mnemonics: string,
+        public session: string,
+        public keypairType: KeypairType,
+        public retries: number,
+        public api?: ApiPromise
     ) {
-      this.disconnectAndExit = this.disconnectAndExit.bind(this);
-      this.disconnect = this.disconnect.bind(this);
-      this.__handleConnection = this.__handleConnection.bind(this);
-      this.retries = retries > 0 ? retries : 5;
+        this.disconnectAndExit = this.disconnectAndExit.bind(this);
+        this.disconnect = this.disconnect.bind(this);
+        this.__handleConnection = this.__handleConnection.bind(this);
+        this.retries = retries > 0 ? retries : 5;
 
         const key = `${this.relayUrl}:${this.mnemonics}:${this.keypairType}`;
         if (Client.connections.has(key)) {
@@ -42,6 +43,7 @@ class Client {
         }
 
         if (!(keypairType.toLowerCase().trim() in KPType)) {
+
             throw new Error({ message: "Unsupported Keypair type" })
         }
 
@@ -52,7 +54,7 @@ class Client {
         if (this.con?.readyState !== this.con?.CLOSED) {
             this.con.close();
         }
-        
+
         try {
             if (this.isEnvNode()) {
                 const Ws = require("ws")
@@ -69,8 +71,10 @@ class Client {
                 }
                 const receivedEnvelope = Envelope.deserializeBinary(data);
                 // cast received enevelope to client envelope
+
                 await this._initApi();
                 const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl, this.api!);
+
 
                 //verify
                 if (this.responses.get(receivedEnvelope.uid)) {
@@ -107,7 +111,7 @@ class Client {
         } catch (err) {
             const c = this.con as WSConnection;
             if (c && c.readyState == c.OPEN) {
-              c.close();
+                c.close();
             }
             throw new Error({ message: `Unable to connect due to ${err}` })
         }
@@ -115,8 +119,8 @@ class Client {
     }
 
     disconnect() {
-      this.api?.off("disconnected", this.__handleConnection);
-      this.api?.disconnect();
+        this.api?.off("disconnected", this.__handleConnection);
+        this.api?.disconnect();
         for (const connection of Client.connections.values()) {
             connection.con.close()
         }
@@ -147,7 +151,6 @@ class Client {
                     clearInterval(interval)
                     reject(new Error({ message: 'Maximum number of attempts exceeded' }))
                 } else if (this.con.readyState === this.con.OPEN) {
-                    // this.updateUrl.bind(this)
                     clearInterval(interval)
                     resolve("connected")
                 }
@@ -156,7 +159,9 @@ class Client {
         })
     }
 
+
     async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number, retries: number = this.retries) {
+
 
         try {
             // create new envelope with given data and destination
@@ -171,18 +176,38 @@ class Client {
             await this._initApi();
             this.destTwin = await getTwinFromTwinID(this.api!, destinationTwinId);
 
+
             envelope.destination = new Address({ twin: this.destTwin.id })
 
             if (requestCommand) {
                 envelope.request = new Request({ command: requestCommand })
             }
-            if (requestData) {
-                envelope.plain = new Uint8Array(Buffer.from(requestData));
 
-            }
+
+
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
             let retriesCount = 0;
+
+            if (requestData) {
+
+                if (this.destTwin.pk && this.twin.pk) {
+
+                    clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.mnemonics, this.destTwin.pk);
+                } else {
+                    clientEnvelope.plain = new Uint8Array(Buffer.from(requestData));
+                }
+
+
+            }
+
+            if (this.signer) {
+
+                clientEnvelope.signature = clientEnvelope.signEnvelope()
+            }
+
+
             while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
+
                 try {
                     await this.waitForOpenConnection();
                 } catch (er) {
@@ -197,9 +222,9 @@ class Client {
 
             // add request id to responses map on client object
             this.responses.set(clientEnvelope.uid, clientEnvelope)
-            
+
             this.con.send(clientEnvelope.serializeBinary());
-            
+
             return clientEnvelope.uid;
 
         } catch (err) {
@@ -211,24 +236,32 @@ class Client {
     }
 
     read(requestID: string) {
+
         return new Promise(async (resolve, reject) => {
-            let envelope: ClientEnvelope = this.responses.get(requestID)
+            let envelope: ClientEnvelope = this.responses.get(requestID)!
             // check if envelope in map has a response  
             const now = new Date().getTime();
             while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
-                envelope = this.responses.get(requestID)
+                envelope = this.responses.get(requestID)!
                 if (envelope && envelope.response) {
-
-
                     const verified = await envelope.verify()
                     if (verified) {
-                        const dataReceived = envelope.plain;
-                        if (dataReceived) {
-                            const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                            const responseString = JSON.parse(decodedData);
+                        if (envelope.plain.length > 0) {
+                            const dataReceived = envelope.plain;
+                            if (dataReceived) {
+                                const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
+                                const responseString = JSON.parse(decodedData);
+                                this.responses.delete(requestID);
+                                resolve(responseString);
+                            }
+                        } else if (envelope.cipher.length > 0) {
+                            const decryptedCipher = await envelope.decrypt(this.mnemonics);
+                            const decodedData = Buffer.from(decryptedCipher).toString()
                             this.responses.delete(requestID);
-                            resolve(responseString);
+                            resolve(decodedData);
+
                         }
+
                     } else {
                         this.responses.delete(requestID);
                         reject("invalid signature, discarding response");
@@ -237,6 +270,7 @@ class Client {
                 }
                 // check if envelope in map has an error
                 else if (envelope && envelope.error) {
+
                     const err = envelope.error
                     if (err) {
                         this.responses.delete(requestID);
@@ -251,6 +285,9 @@ class Client {
             }
         })
     }
+
+
+
 
 
 
@@ -302,17 +339,17 @@ class Client {
     }
 
     private async _initApi(): Promise<void> {
-      if (this.api) return;
+        if (this.api) return;
 
-      const provider = new WsProvider(this.chainUrl);
-      this.api = await ApiPromise.create({ provider });
-      this.api.on("disconnected", this.__handleConnection);
+        const provider = new WsProvider(this.chainUrl);
+        this.api = await ApiPromise.create({ provider });
+        this.api.on("disconnected", this.__handleConnection);
     }
 
 
 
     private __handleConnection() {
-      this.api?.connect();
+        this.api?.connect();
     }
 
 }

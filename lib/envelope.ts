@@ -1,17 +1,20 @@
 import { Address, Request, Envelope, Error, Response } from './types/lib/types';
-import cryptoJs from 'crypto-js';
 import { Buffer } from "buffer"
-import { KPType, sign } from './sign';
+import { createShared, KPType, sign } from './sign';
 import { KeyringPair } from '@polkadot/keyring/types';
-import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
+import { ApiPromise, Keyring } from '@polkadot/api'
 import { waitReady } from '@polkadot/wasm-crypto';
 import { KeypairType } from '@polkadot/util-crypto/types';
-import { getTwinFromTwinID } from './util';
+import { getTwinFromTwinID, hexStringToArrayBuffer } from './util';
+import * as cryptoJs from 'crypto-js';
+import aes from 'js-crypto-aes';
 class ClientEnvelope extends Envelope {
     signer!: KeyringPair;
     chainUrl: string;
     twin: any;
+
     constructor(signer: KeyringPair | undefined, envelope: Envelope, chainUrl: string, public api: ApiPromise) {
+
         super({
             uid: envelope.uid,
             tags: envelope.tags,
@@ -29,19 +32,34 @@ class ClientEnvelope extends Envelope {
             federation: envelope.federation || undefined,
 
         });
+
         this.chainUrl = chainUrl;
         this.schema = "application/json"
+        this.api = api;
+
         if (signer) {
             this.signer = signer;
-            this.signature = this.signEnvelope()
+
         }
+
 
     }
     signEnvelope() {
         const toSign = this.challenge();
-
         return sign(toSign, this.signer);
     }
+
+
+    createNonce(size: number) {
+
+        let randArr: number[] = []
+        for (let i = 0; i < size; i++) {
+            randArr.push(Math.random() * 10);
+        }
+        return new Uint8Array([...randArr]);
+
+    }
+
 
     async getSigner(sigType: KeypairType) {
         await waitReady()
@@ -51,6 +69,7 @@ class ClientEnvelope extends Envelope {
     }
 
     async verify() {
+
         try {
             const prefix = new TextDecoder().decode(this.signature.slice(0, 1))
             let sigType: KeypairType
@@ -62,11 +81,14 @@ class ClientEnvelope extends Envelope {
                 return false;
             }
             // get twin of sender from twinid
+
             this.twin = await getTwinFromTwinID(this.api, this.source.twin)
+
             // get sender pk from twin , update signer to be of sender 
             await this.getSigner(sigType);
             // verify signature using challenge and pk
             const dataHashed = new Uint8Array(this.challenge());
+
             return this.signer.verify(dataHashed, this.signature.slice(1), this.signer.publicKey);
 
         } catch (err) {
@@ -76,7 +98,40 @@ class ClientEnvelope extends Envelope {
 
     }
 
+    async encrypt(requestData: any, mnemonic: string, destTwinPk: string) {
+
+        const pubKey = new Uint8Array(hexStringToArrayBuffer(destTwinPk))
+        const sharedKey = await createShared(pubKey, mnemonic)
+
+
+        const nonce = this.createNonce(12)
+
+        // convert requestdata to Uint8Array
+        const dataUint8 = new Uint8Array(Buffer.from(requestData));
+
+        // encrypt cipher text with sharedkey
+
+        const encryptedText = await aes.encrypt(dataUint8, sharedKey, { name: 'AES-GCM', iv: nonce })
+
+        const encryptedArr = new Uint8Array(encryptedText)
+        let finalArr = new Uint8Array(encryptedArr.length + nonce.length);
+        finalArr.set(nonce);
+        finalArr.set(encryptedArr, nonce.length);
+
+        return finalArr
+
+    }
+    // needs to return wordArray decrypted
+    async decrypt(mnemonic: string) {
+        const pubKey = new Uint8Array(hexStringToArrayBuffer(this.twin.pk))
+        const sharedKey = await createShared(pubKey, mnemonic)
+        const iv = this.cipher.slice(0, 12);
+        const data = Buffer.from(this.cipher.slice(12));
+        const decrypted = await aes.decrypt(data, sharedKey, { name: 'AES-GCM', iv })
+        return decrypted;
+    }
     challenge() {
+
         let hash = cryptoJs.algo.MD5.create()
             .update(this.uid)
             .update(this.tags)
@@ -100,16 +155,20 @@ class ClientEnvelope extends Envelope {
         if (this.federation) {
             hash.update(this.federation)
         }
-        if (this.plain) {
+
+
+        if (this.plain.length > 0) {
+
             const plain = Buffer.from(this.plain).toString("hex")
             hash.update(cryptoJs.enc.Hex.parse(plain))
-        } else if (this.cipher) {
+        } else if (this.cipher.length > 0) {
             const cipher = Buffer.from(this.cipher).toString("hex")
             hash.update(cryptoJs.enc.Hex.parse(cipher))
         }
 
+        const hashFinal = Buffer.from(hash.finalize().toString(), "hex")
 
-        return Buffer.from(hash.finalize().toString(), "hex")
+        return hashFinal
 
     }
     challengeAddress(address: Address) {
