@@ -69,7 +69,7 @@ class ClientEnvelope extends Envelope {
     }
 
     async verify() {
-        console.log('verifying')
+
         try {
             const prefix = new TextDecoder().decode(this.signature.slice(0, 1))
             let sigType: KeypairType
