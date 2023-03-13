@@ -2,7 +2,7 @@ import { Address, Request, Envelope, Error, Response } from './types/lib/types';
 import { Buffer } from "buffer"
 import { createShared, KPType, sign } from './sign';
 import { KeyringPair } from '@polkadot/keyring/types';
-import { Keyring } from '@polkadot/api'
+import { ApiPromise, Keyring } from '@polkadot/api'
 import { waitReady } from '@polkadot/wasm-crypto';
 import { KeypairType } from '@polkadot/util-crypto/types';
 import { getTwinFromTwinID, hexStringToArrayBuffer } from './util';
@@ -35,6 +35,7 @@ class ClientEnvelope extends Envelope {
 
         this.chainUrl = chainUrl;
         this.schema = "application/json"
+        this.api = api;
 
         if (signer) {
             this.signer = signer;
@@ -108,9 +109,8 @@ class ClientEnvelope extends Envelope {
         // convert requestdata to Uint8Array
         const dataUint8 = new Uint8Array(Buffer.from(requestData));
 
-        // // encrypt cipher text with sharedkey
-        // const encryptedText = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, sKey, Buffer.from(dataUint8));
-        // console.log(encryptedText);
+        // encrypt cipher text with sharedkey
+
         const encryptedText = await aes.encrypt(dataUint8, sharedKey, { name: 'AES-GCM', iv: nonce })
 
         const encryptedArr = new Uint8Array(encryptedText)

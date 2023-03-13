@@ -24,18 +24,18 @@ class Client {
 
 
     constructor(
-      public chainUrl: string, 
-      public relayUrl: string, 
-      public mnemonics: string, 
-      public session: string, 
-      public keypairType: KeypairType, 
-      public retries: number, 
-      public api?: ApiPromise
+        public chainUrl: string,
+        public relayUrl: string,
+        public mnemonics: string,
+        public session: string,
+        public keypairType: KeypairType,
+        public retries: number,
+        public api?: ApiPromise
     ) {
-      this.disconnectAndExit = this.disconnectAndExit.bind(this);
-      this.disconnect = this.disconnect.bind(this);
-      this.__handleConnection = this.__handleConnection.bind(this);
-      this.retries = retries > 0 ? retries : 5;
+        this.disconnectAndExit = this.disconnectAndExit.bind(this);
+        this.disconnect = this.disconnect.bind(this);
+        this.__handleConnection = this.__handleConnection.bind(this);
+        this.retries = retries > 0 ? retries : 5;
 
         const key = `${this.relayUrl}:${this.mnemonics}:${this.keypairType}`;
         if (Client.connections.has(key)) {
@@ -54,7 +54,7 @@ class Client {
         if (this.con?.readyState !== this.con?.CLOSED) {
             this.con.close();
         }
-        
+
         try {
             if (this.isEnvNode()) {
                 const Ws = require("ws")
@@ -111,7 +111,7 @@ class Client {
         } catch (err) {
             const c = this.con as WSConnection;
             if (c && c.readyState == c.OPEN) {
-              c.close();
+                c.close();
             }
             throw new Error({ message: `Unable to connect due to ${err}` })
         }
@@ -119,8 +119,8 @@ class Client {
     }
 
     disconnect() {
-      this.api?.off("disconnected", this.__handleConnection);
-      this.api?.disconnect();
+        this.api?.off("disconnected", this.__handleConnection);
+        this.api?.disconnect();
         for (const connection of Client.connections.values()) {
             connection.con.close()
         }
@@ -151,7 +151,6 @@ class Client {
                     clearInterval(interval)
                     reject(new Error({ message: 'Maximum number of attempts exceeded' }))
                 } else if (this.con.readyState === this.con.OPEN) {
-                    // this.updateUrl.bind(this)
                     clearInterval(interval)
                     resolve("connected")
                 }
@@ -185,7 +184,9 @@ class Client {
             }
 
 
-            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl);
+
+            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
+            let retriesCount = 0;
 
             if (requestData) {
 
@@ -205,8 +206,6 @@ class Client {
             }
 
 
-            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
-            let retriesCount = 0;
             while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
 
                 try {
@@ -223,9 +222,9 @@ class Client {
 
             // add request id to responses map on client object
             this.responses.set(clientEnvelope.uid, clientEnvelope)
-            
+
             this.con.send(clientEnvelope.serializeBinary());
-            
+
             return clientEnvelope.uid;
 
         } catch (err) {
@@ -239,11 +238,11 @@ class Client {
     read(requestID: string) {
 
         return new Promise(async (resolve, reject) => {
-            let envelope: ClientEnvelope = this.responses.get(requestID)
+            let envelope: ClientEnvelope = this.responses.get(requestID)!
             // check if envelope in map has a response  
             const now = new Date().getTime();
             while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
-                envelope = this.responses.get(requestID)
+                envelope = this.responses.get(requestID)!
                 if (envelope && envelope.response) {
                     const verified = await envelope.verify()
                     if (verified) {
@@ -340,17 +339,17 @@ class Client {
     }
 
     private async _initApi(): Promise<void> {
-      if (this.api) return;
+        if (this.api) return;
 
-      const provider = new WsProvider(this.chainUrl);
-      this.api = await ApiPromise.create({ provider });
-      this.api.on("disconnected", this.__handleConnection);
+        const provider = new WsProvider(this.chainUrl);
+        this.api = await ApiPromise.create({ provider });
+        this.api.on("disconnected", this.__handleConnection);
     }
 
 
 
     private __handleConnection() {
-      this.api?.connect();
+        this.api?.connect();
     }
 
 }
