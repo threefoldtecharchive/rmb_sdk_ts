@@ -138,7 +138,10 @@ class Client {
     close() {
         this.api?.off("disconnected", this.__handleConnection);
         if (this.api?.isConnected) this.api?.disconnect();
-        if (this.con?.readyState !== this.con?.CLOSED) this.con.close();
+        if (this.con) {
+            if (this.con?.readyState !== this.con?.CLOSED) this.con.close();
+        }
+
     }
     waitForOpenConnection() {
         return new Promise((resolve, reject) => {
