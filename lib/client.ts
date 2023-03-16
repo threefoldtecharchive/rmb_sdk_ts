@@ -50,7 +50,7 @@ class Client {
     }
 
     private async __pingPong() {
-        const reqId = await this.ping(this.twin.id, 5);
+        const reqId = await this.ping();
         return this
             .read(reqId)
             .catch(() => null)
@@ -170,27 +170,23 @@ class Client {
         })
     }
     // send ping every 20 s 
-    async ping(destinationTwinId: number, expirationMinutes: number, retries: number = this.retries) {
+    async ping(retries: number = this.retries) {
 
         try {
             // create new envelope with given data and destination
             const envelope = new Envelope({
                 uid: uuidv4(),
                 timestamp: Math.round(Date.now() / 1000),
-                expiration: expirationMinutes * 60,
+                expiration: 40,
                 source: this.source,
                 ping: new Ping(),
             });
             // need to check if destination twinId exists by fetching dest twin from chain first
             await this._initApi();
-            this.destTwin = await getTwinFromTwinID(this.api!, destinationTwinId);
 
-            envelope.destination = new Address({ twin: this.destTwin.id })
+            envelope.destination = new Address()
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
-            if (this.signer) {
-
-                clientEnvelope.signature = clientEnvelope.signEnvelope()
-            }
+            
             let retriesCount = 0;
             while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
                 try {
