@@ -22,7 +22,6 @@ class Client {
     twin: any;
     destTwin: any
 
-
     constructor(
         public chainUrl: string,
         public relayUrl: string,
@@ -48,35 +47,17 @@ class Client {
         }
 
         Client.connections.set(key, this);
-        this.__pingPong();
     }
 
-    private __pingPong(): void {
-        let pingPongAlive = false;
-        const pingPong = async () => {
-            if (pingPongAlive) return;
-            const reqId = await this.ping(this.destTwin /* blocked for now */, 5);
-
-            try {
-                let timeout: NodeJS.Timeout;
-                let done = false;
-                await this.read(reqId, () => {
-                    if (done) return;
-                    clearTimeout(timeout);
-                    pingPongAlive = true;
-                    timeout = setTimeout(() => {
-                        pingPongAlive = false;
-                        done = true;
-                    }, 20 * 1000);
-                })
-                pingPongAlive  = false;
-            } catch {
-                pingPongAlive  = false;
-            }
-        }
-
-        pingPong()
-        setTimeout(pingPong, 40 * 1000);
+    private async __pingPong() {
+        const reqId = await this.ping(this.twin.id, 5);
+        return this
+            .read(reqId)
+            .catch(() => null)
+            .finally(() => {
+                if (this.con?.readyState === this.con.OPEN)
+                    this.__pingPong()
+            });
     }
 
     createConnection() {
@@ -125,6 +106,7 @@ class Client {
             this.twin = await getTwinFromTwinAddress(this.api!, this.signer.address)
             this.updateSource();
             this.createConnection()
+            this.__pingPong();
 
             if (this.isEnvNode()) {
                 process.on("SIGTERM", this.disconnectAndExit);
@@ -311,13 +293,14 @@ class Client {
     }
     // if pong is received reset timer (40 seconds)
     // if no pong receieved after 40 s, reconnect 
-    read(requestID: string, onPong?: (pong: Pong) => void) {
+    read(requestID: string) {
         return new Promise(async (resolve, reject) => {
 
             let envelope = this.responses.get(requestID) as ClientEnvelope
             // check if envelope in map has a response  
             const now = new Date().getTime();
             while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
+
                 envelope = this.responses.get(requestID) as ClientEnvelope
                 if (envelope && envelope.response) {
                     const verified = await envelope.verify()
@@ -353,7 +336,8 @@ class Client {
                         reject(`${err.code} ${err.message}`);
                     }
                 } else if (envelope && envelope.pong) {
-                    onPong?.(envelope.pong)
+                    resolve(envelope.pong)
+                    break;
                 }
                 await new Promise(f => setTimeout(f, 1000));
             }
