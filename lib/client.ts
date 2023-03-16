@@ -51,13 +51,11 @@ class Client {
 
     private __pingPongTimeout?: NodeJS.Timeout;
     private async __pingPong() {
+        if (this.__pingPongTimeout) clearTimeout(this.__pingPongTimeout);
         const reqId = await this.ping();
         return this
             .read(reqId)
-            .catch(() => {
-                if (this.con?.readyState === this.con?.OPEN)
-                    this.__pingPong()
-            })
+            .catch(() => this.reconnect())
             .finally(() => {
                 this.__pingPongTimeout = setTimeout(() => {
                     if (this.con?.readyState === this.con?.OPEN)
@@ -339,8 +337,6 @@ class Client {
                         reject(`${err.code} ${err.message}`);
                     }
                 } else if (envelope && envelope.pong) {
-                    console.log("PONG");
-                    
                     resolve(envelope.pong)
                     break;
                 }
