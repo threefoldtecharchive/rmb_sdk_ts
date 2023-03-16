@@ -1,5 +1,5 @@
 import { KeyringPair } from "@polkadot/keyring/types";
-import { Address, Envelope, Error, Ping, Request } from "./types/lib/types";
+import { Address, Envelope, Error, Ping, Pong, Request } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { Keyring } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
@@ -48,6 +48,35 @@ class Client {
         }
 
         Client.connections.set(key, this);
+        this.__pingPong();
+    }
+
+    private __pingPong(): void {
+        let pingPongAlive = false;
+        const pingPong = async () => {
+            if (pingPongAlive) return;
+            const reqId = await this.ping(this.destTwin /* blocked for now */, 5);
+
+            try {
+                let timeout: NodeJS.Timeout;
+                let done = false;
+                await this.read(reqId, () => {
+                    if (done) return;
+                    clearTimeout(timeout);
+                    pingPongAlive = true;
+                    timeout = setTimeout(() => {
+                        pingPongAlive = false;
+                        done = true;
+                    }, 20 * 1000);
+                })
+                pingPongAlive  = false;
+            } catch {
+                pingPongAlive  = false;
+            }
+        }
+
+        pingPong()
+        setTimeout(pingPong, 40 * 1000);
     }
 
     createConnection() {
@@ -282,8 +311,7 @@ class Client {
     }
     // if pong is received reset timer (40 seconds)
     // if no pong receieved after 40 s, reconnect 
-    read(requestID: string) {
-
+    read(requestID: string, onPong?: (pong: Pong) => void) {
         return new Promise(async (resolve, reject) => {
 
             let envelope = this.responses.get(requestID) as ClientEnvelope
@@ -325,7 +353,7 @@ class Client {
                         reject(`${err.code} ${err.message}`);
                     }
                 } else if (envelope && envelope.pong) {
-                    console.log(envelope.pong)
+                    onPong?.(envelope.pong)
                 }
                 await new Promise(f => setTimeout(f, 1000));
             }
