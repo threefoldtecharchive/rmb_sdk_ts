@@ -8,7 +8,7 @@ import ClientEnvelope from "./envelope";
 import { Buffer } from "buffer"
 import { sign, KPType } from './sign'
 import { v4 as uuidv4 } from 'uuid';
-import { getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
+import { getPublicKey, getTwinFromTwinAddress, getTwinFromTwinID } from "./util";
 import { WsProvider, ApiPromise } from "@polkadot/api";
 import type { WebSocket as WSConnection } from "ws";
 
@@ -94,6 +94,11 @@ class Client {
             await this._initApi();
             await this.createSigner();
             this.twin = await getTwinFromTwinAddress(this.api!, this.signer.address)
+
+            if (!this.twin.pk) {
+                this.twin.pk = getPublicKey(this.mnemonics);
+            }
+
             this.updateSource();
             this.createConnection()
 
