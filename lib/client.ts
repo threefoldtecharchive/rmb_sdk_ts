@@ -158,7 +158,7 @@ class Client {
             }, intervalTime)
         })
     }
-
+    // send ping every 20 s 
     async ping(destinationTwinId: number, expirationMinutes: number, retries: number = this.retries) {
 
         try {
@@ -176,6 +176,10 @@ class Client {
 
             envelope.destination = new Address({ twin: this.destTwin.id })
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
+            if (this.signer) {
+
+                clientEnvelope.signature = clientEnvelope.signEnvelope()
+            }
             let retriesCount = 0;
             while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
                 try {
@@ -227,10 +231,7 @@ class Client {
             if (requestCommand) {
                 envelope.request = new Request({ command: requestCommand })
             }
-            if (requestData) {
-                envelope.plain = new Uint8Array(Buffer.from(requestData));
 
-            }
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
             let retriesCount = 0;
 
@@ -279,10 +280,12 @@ class Client {
         }
 
     }
-
+    // if pong is received reset timer (40 seconds)
+    // if no pong receieved after 40 s, reconnect 
     read(requestID: string) {
 
         return new Promise(async (resolve, reject) => {
+
             let envelope = this.responses.get(requestID) as ClientEnvelope
             // check if envelope in map has a response  
             const now = new Date().getTime();
@@ -321,6 +324,8 @@ class Client {
                         this.responses.delete(requestID);
                         reject(`${err.code} ${err.message}`);
                     }
+                } else if (envelope && envelope.pong) {
+                    console.log(envelope.pong)
                 }
                 await new Promise(f => setTimeout(f, 1000));
             }

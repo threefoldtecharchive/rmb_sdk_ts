@@ -9,7 +9,7 @@
     "/dist"
   ],
   "scripts": {
-    "start": "ts-node --project ./tsconfig-node.json ./examples/direct/node.ts",
+    "start": "ts-node --project ./tsconfig-node.json ./examples/direct/ping_pong.ts",
     "build": "npm-run-all es6-build node-build",
     "node-build": "tsc --build tsconfig-node.json",
     "es6-build": "tsc --build tsconfig-es6.json"
