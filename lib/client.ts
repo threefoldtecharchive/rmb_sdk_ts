@@ -49,14 +49,17 @@ class Client {
         Client.connections.set(key, this);
     }
 
+    private __pingPongTimeout?: NodeJS.Timeout;
     private async __pingPong() {
         const reqId = await this.ping();
         return this
             .read(reqId)
             .catch(() => null)
             .finally(() => {
-                if (this.con?.readyState === this.con.OPEN)
+                this.__pingPongTimeout = setTimeout(() => {
+                    if (this.con?.readyState === this.con?.OPEN)
                     this.__pingPong()
+                }, 20 * 1000);
             });
     }
 
@@ -147,6 +150,7 @@ class Client {
         this.connect()
     }
     close() {
+        if (this.__pingPongTimeout) clearTimeout(this.__pingPongTimeout);
         this.api?.off("disconnected", this.__handleConnection);
         if (this.api?.isConnected) this.api?.disconnect();
         if (this.con?.readyState !== this.con?.CLOSED) this.con.close();
@@ -177,7 +181,7 @@ class Client {
             const envelope = new Envelope({
                 uid: uuidv4(),
                 timestamp: Math.round(Date.now() / 1000),
-                expiration: 40,
+                expiration: 5,
                 source: this.source,
                 ping: new Ping(),
             });
@@ -332,6 +336,8 @@ class Client {
                         reject(`${err.code} ${err.message}`);
                     }
                 } else if (envelope && envelope.pong) {
+                    console.log("PONG");
+                    
                     resolve(envelope.pong)
                     break;
                 }
