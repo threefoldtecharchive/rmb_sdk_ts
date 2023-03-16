@@ -1,9 +1,18 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import * as cryptoJs from 'crypto-js';
+
+import * as secp from '@noble/secp256k1';
+import * as  bip39 from 'bip39'
 export async function createGridCL(chainUrl: string) {
     const provider = new WsProvider(chainUrl)
     const cl = await ApiPromise.create({ provider })
     return cl;
+}
+export function getPublicKey(mnemonic: string) {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const privKey = new Uint8Array(seed).slice(0, 32);
+    const pk = Buffer.from(secp.getPublicKey(privKey, true)).toString("hex");
+    return pk;
 }
 export async function getTwinFromTwinID(api: ApiPromise, twinId: number) {
     return (await api.query.tfgridModule.twins(twinId)).toJSON();
