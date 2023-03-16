@@ -54,11 +54,14 @@ class Client {
         const reqId = await this.ping();
         return this
             .read(reqId)
-            .catch(() => null)
+            .catch(() => {
+                if (this.con?.readyState === this.con?.OPEN)
+                    this.__pingPong()
+            })
             .finally(() => {
                 this.__pingPongTimeout = setTimeout(() => {
                     if (this.con?.readyState === this.con?.OPEN)
-                    this.__pingPong()
+                        this.__pingPong()
                 }, 20 * 1000);
             });
     }
