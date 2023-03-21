@@ -1,5 +1,5 @@
 import { KeyringPair } from "@polkadot/keyring/types";
-import { Address, Envelope, Error, Request } from "./types/lib/types";
+import { Address, Envelope, Error, Ping, Pong, Request } from "./types/lib/types";
 import { waitReady } from '@polkadot/wasm-crypto';
 import { Keyring } from '@polkadot/api'
 import { KeypairType } from "@polkadot/util-crypto/types";
@@ -21,7 +21,6 @@ class Client {
     con!: WSConnection;
     twin: any;
     destTwin: any
-
 
     constructor(
         public chainUrl: string,
@@ -48,6 +47,21 @@ class Client {
         }
 
         Client.connections.set(key, this);
+    }
+
+    private __pingPongTimeout?: NodeJS.Timeout;
+    private async __pingPong() {
+        if (this.__pingPongTimeout) clearTimeout(this.__pingPongTimeout);
+        const reqId = await this.ping();
+        return this
+            .read(reqId)
+            .catch(() => this.reconnect())
+            .finally(() => {
+                this.__pingPongTimeout = setTimeout(() => {
+                    if (this.con?.readyState === this.con?.OPEN)
+                        this.__pingPong()
+                }, 20 * 1000);
+            });
     }
 
     createConnection() {
@@ -111,6 +125,7 @@ class Client {
 
             this.updateSource();
             this.createConnection()
+            this.__pingPong();
 
             if (this.isEnvNode()) {
                 process.on("SIGTERM", this.disconnectAndExit);
@@ -151,6 +166,7 @@ class Client {
         this.connect()
     }
     close() {
+        if (this.__pingPongTimeout) clearTimeout(this.__pingPongTimeout);
         this.api?.off("disconnected", this.__handleConnection);
         if (this.api?.isConnected) this.api?.disconnect();
         if (this.con?.readyState !== this.con?.CLOSED) this.con.close();
@@ -173,56 +189,26 @@ class Client {
             }, intervalTime)
         })
     }
-
-
-    async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number, retries: number = this.retries) {
-
+    // send ping every 20 s 
+    async ping(retries: number = this.retries) {
 
         try {
             // create new envelope with given data and destination
             const envelope = new Envelope({
                 uid: uuidv4(),
                 timestamp: Math.round(Date.now() / 1000),
-                expiration: expirationMinutes * 60,
+                expiration: 40,
                 source: this.source,
-
+                ping: new Ping(),
             });
             // need to check if destination twinId exists by fetching dest twin from chain first
             await this._initApi();
-            this.destTwin = await getTwinFromTwinID(this.api!, destinationTwinId);
 
-
-            envelope.destination = new Address({ twin: this.destTwin.id })
-
-            if (requestCommand) {
-                envelope.request = new Request({ command: requestCommand })
-            }
-
-
-
+            envelope.destination = new Address()
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
+            
             let retriesCount = 0;
-
-            if (requestData) {
-
-                if (this.destTwin.pk && this.twin.pk) {
-
-                    clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.mnemonics, this.destTwin.pk);
-                } else {
-                    clientEnvelope.plain = new Uint8Array(Buffer.from(requestData));
-                }
-
-
-            }
-
-            if (this.signer) {
-
-                clientEnvelope.signature = clientEnvelope.signEnvelope()
-            }
-
-
             while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
-
                 try {
                     await this.waitForOpenConnection();
                 } catch (er) {
@@ -250,14 +236,88 @@ class Client {
 
     }
 
-    read(requestID: string) {
+    async send(requestCommand: string, requestData: any, destinationTwinId: number, expirationMinutes: number, retries: number = this.retries) {
 
+
+        try {
+            // create new envelope with given data and destination
+            const envelope = new Envelope({
+                uid: uuidv4(),
+                timestamp: Math.round(Date.now() / 1000),
+                expiration: expirationMinutes * 60,
+                source: this.source,
+
+            });
+            // need to check if destination twinId exists by fetching dest twin from chain first
+            await this._initApi();
+            this.destTwin = await getTwinFromTwinID(this.api!, destinationTwinId);
+
+
+            envelope.destination = new Address({ twin: this.destTwin.id })
+
+            if (requestCommand) {
+                envelope.request = new Request({ command: requestCommand })
+            }
+
+            const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
+            let retriesCount = 0;
+
+            if (requestData) {
+
+                if (this.destTwin.pk && this.twin.pk) {
+
+                    clientEnvelope.cipher = await clientEnvelope.encrypt(requestData, this.mnemonics, this.destTwin.pk);
+                } else {
+                    clientEnvelope.plain = new Uint8Array(Buffer.from(requestData));
+                }
+
+
+            }
+
+            if (this.signer) {
+
+                clientEnvelope.signature = clientEnvelope.signEnvelope()
+            }
+
+
+            while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
+                try {
+                    await this.waitForOpenConnection();
+                } catch (er) {
+                    if (retries === retriesCount) {
+                        const e = new Error();
+                        e.message = `Failed to open connection after try for ${retriesCount} times.`;
+                        throw e;
+                    }
+                    this.createConnection()
+                }
+            }
+
+            // add request id to responses map on client object
+            this.responses.set(clientEnvelope.uid, clientEnvelope)
+
+            this.con.send(clientEnvelope.serializeBinary());
+
+            return clientEnvelope.uid;
+
+        } catch (err) {
+
+            throw new Error({ message: `Unable to send due to ${err}` })
+
+        }
+
+    }
+    // if pong is received reset timer (40 seconds)
+    // if no pong receieved after 40 s, reconnect 
+    read(requestID: string) {
         return new Promise(async (resolve, reject) => {
-            let envelope: ClientEnvelope = this.responses.get(requestID)!
+
+            let envelope = this.responses.get(requestID) as ClientEnvelope
             // check if envelope in map has a response  
             const now = new Date().getTime();
             while (envelope && new Date().getTime() < now + envelope.expiration * 1000) {
-                envelope = this.responses.get(requestID)!
+
+                envelope = this.responses.get(requestID) as ClientEnvelope
                 if (envelope && envelope.response) {
                     const verified = await envelope.verify()
                     if (verified) {
@@ -268,18 +328,21 @@ class Client {
                                 const responseString = JSON.parse(decodedData);
                                 this.responses.delete(requestID);
                                 resolve(responseString);
+                                break;
                             }
                         } else if (envelope.cipher.length > 0) {
                             const decryptedCipher = await envelope.decrypt(this.mnemonics);
                             const decodedData = Buffer.from(decryptedCipher).toString()
                             this.responses.delete(requestID);
                             resolve(decodedData);
+                            break;
 
                         }
 
                     } else {
                         this.responses.delete(requestID);
                         reject("invalid signature, discarding response");
+                        break;
                     }
 
                 }
@@ -290,7 +353,12 @@ class Client {
                     if (err) {
                         this.responses.delete(requestID);
                         reject(`${err.code} ${err.message}`);
+                        break;
                     }
+                } else if (envelope && envelope.pong) {
+                    this.responses.delete(requestID);
+                    resolve(envelope.pong)
+                    break;
                 }
                 await new Promise(f => setTimeout(f, 1000));
             }
@@ -300,11 +368,6 @@ class Client {
             }
         })
     }
-
-
-
-
-
 
     isEnvNode(): boolean {
         return (

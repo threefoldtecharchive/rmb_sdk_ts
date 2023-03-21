@@ -25,6 +25,8 @@ class ClientEnvelope extends Envelope {
             response: envelope.response,
             request: envelope.request,
             error: envelope.error,
+            ping: envelope.ping ? envelope.ping : undefined,
+            pong: envelope.pong ? envelope.pong : undefined,
             signature: envelope.signature,
             schema: envelope.schema,
             plain: envelope.plain.length != 0 ? envelope.plain : undefined,
