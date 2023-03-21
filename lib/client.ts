@@ -182,7 +182,7 @@ class Client {
             const envelope = new Envelope({
                 uid: uuidv4(),
                 timestamp: Math.round(Date.now() / 1000),
-                expiration: 5,
+                expiration: 40,
                 source: this.source,
                 ping: new Ping(),
             });
@@ -313,18 +313,21 @@ class Client {
                                 const responseString = JSON.parse(decodedData);
                                 this.responses.delete(requestID);
                                 resolve(responseString);
+                                break;
                             }
                         } else if (envelope.cipher.length > 0) {
                             const decryptedCipher = await envelope.decrypt(this.mnemonics);
                             const decodedData = Buffer.from(decryptedCipher).toString()
                             this.responses.delete(requestID);
                             resolve(decodedData);
+                            break;
 
                         }
 
                     } else {
                         this.responses.delete(requestID);
                         reject("invalid signature, discarding response");
+                        break;
                     }
 
                 }
@@ -335,8 +338,10 @@ class Client {
                     if (err) {
                         this.responses.delete(requestID);
                         reject(`${err.code} ${err.message}`);
+                        break;
                     }
                 } else if (envelope && envelope.pong) {
+                    this.responses.delete(requestID);
                     resolve(envelope.pong)
                     break;
                 }
