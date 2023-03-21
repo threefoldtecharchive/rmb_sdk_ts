@@ -325,16 +325,17 @@ class Client {
                             const dataReceived = envelope.plain;
                             if (dataReceived) {
                                 const decodedData = new TextDecoder('utf8').decode(Buffer.from(dataReceived))
-                                const responseString = JSON.parse(decodedData);
+                                const parsedResponse = JSON.parse(decodedData);
                                 this.responses.delete(requestID);
-                                resolve(responseString);
+                                resolve(parsedResponse);
                                 break;
                             }
                         } else if (envelope.cipher.length > 0) {
                             const decryptedCipher = await envelope.decrypt(this.mnemonics);
                             const decodedData = Buffer.from(decryptedCipher).toString()
+                            const parsedResponse = JSON.parse(decodedData);
                             this.responses.delete(requestID);
-                            resolve(decodedData);
+                            resolve(parsedResponse);
                             break;
 
                         }
