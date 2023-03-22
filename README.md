@@ -10,7 +10,7 @@ This client can do the following:
 - receive and verify responses to sent requests.
 
 An example of this client usage is defined under
-[examples](examples/direct/main.ts).
+[examples](examples/direct/node.ts).
 
 ### Built with 
 - Typescript
