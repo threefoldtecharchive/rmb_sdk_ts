@@ -107,7 +107,10 @@ class Client {
         try {
             await this._initApi();
             await this.createSigner();
-            this.twin = await getTwinFromTwinAddress(this.api!, this.signer.address)            
+            this.twin = await getTwinFromTwinAddress(this.api!, this.signer.address)
+            if (!this.twin) {
+                throw new Error({ message: "twin does not exist, please create a twin first" })
+            }
             if (!this.twin.pk) {
                 const pk = generatePublicKey(this.mnemonics);
                 await applyExtrinsic(
@@ -143,7 +146,7 @@ class Client {
             if (c && c.readyState == c.OPEN) {
                 c.close();
             }
-            throw new Error({ message: `Unable to connect due to ${err}` })
+            throw new Error({ message: `Unable to connect due to ${err.message}` })
         }
 
     }
@@ -206,7 +209,7 @@ class Client {
 
             envelope.destination = new Address()
             const clientEnvelope = new ClientEnvelope(this.signer, envelope, this.chainUrl, this.api!);
-            
+
             let retriesCount = 0;
             while (this.con.readyState != this.con.OPEN && retries >= retriesCount++) {
                 try {
