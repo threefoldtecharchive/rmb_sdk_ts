@@ -3,7 +3,7 @@ import { Client } from "../../lib/client";
 
 async function main() {
     // create client 
-    const client = new Client("wss://tfchain.dev.grid.tf/ws", `wss://relay.dev.grid.tf/`, "<mnemonic>", "test_client", 'sr25519', 5);
+    const client = new Client("wss://tfchain.dev.grid.tf/ws", `wss://relay.dev.grid.tf/`, "cram donkey act assist hybrid spring soft asthma fragile amateur lucky timber", "test_client", 'sr25519', 5);
 
     try {
 
