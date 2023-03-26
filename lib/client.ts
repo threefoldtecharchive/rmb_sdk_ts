@@ -108,6 +108,9 @@ class Client {
             await this._initApi();
             await this.createSigner();
             this.twin = await getTwinFromTwinAddress(this.api!, this.signer.address)
+            if (!this.twin) {
+                throw new Error({ message: "twin does not exist, please create a twin first" })
+            }
             if (!this.twin.pk) {
                 const pk = generatePublicKey(this.mnemonics);
                 await applyExtrinsic(
