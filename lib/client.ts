@@ -65,42 +65,42 @@ class Client {
     }
 
     createConnection() {
-        if (this.con?.readyState !== this.con?.CLOSED) {
-            this.con.close();
-        }
+        if (!this.con) {
 
-        try {
-            if (this.isEnvNode()) {
-                const Ws = require("ws")
-                this.con = new Ws(this.updateUrl());
-            } else {
-                this.con = new WebSocket(this.updateUrl()) as unknown as WSConnection;
-            }
-            this.con.onmessage = async (e: any) => {
-
-                let data: Uint8Array = e.data
-                if (!this.isEnvNode()) {
-                    const buffer = await new Response(e.data).arrayBuffer();
-                    data = new Uint8Array(buffer)
+            try {
+                if (this.isEnvNode()) {
+                    const Ws = require("ws")
+                    this.con = new Ws(this.updateUrl());
+                } else {
+                    this.con = new WebSocket(this.updateUrl()) as unknown as WSConnection;
                 }
-                const receivedEnvelope = Envelope.deserializeBinary(data);
-                // cast received enevelope to client envelope
+                this.con.onmessage = async (e: any) => {
 
-                await this._initApi();
-                const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl, this.api!);
+                    let data: Uint8Array = e.data
+                    if (!this.isEnvNode()) {
+                        const buffer = await new Response(e.data).arrayBuffer();
+                        data = new Uint8Array(buffer)
+                    }
+                    const receivedEnvelope = Envelope.deserializeBinary(data);
+                    // cast received enevelope to client envelope
+
+                    await this._initApi();
+                    const castedEnvelope = new ClientEnvelope(undefined, receivedEnvelope, this.chainUrl, this.api!);
 
 
-                //verify
-                if (this.responses.get(receivedEnvelope.uid)) {
-                    // update envelope in responses map
-                    this.responses.set(receivedEnvelope.uid, castedEnvelope)
+                    //verify
+                    if (this.responses.get(receivedEnvelope.uid)) {
+                        // update envelope in responses map
+                        this.responses.set(receivedEnvelope.uid, castedEnvelope)
+                    }
+
                 }
-
+            } catch (err) {
+                throw new Error({ message: `Unable to create websocket connection due to ${err}` })
             }
-        } catch (err) {
-            throw new Error({ message: `Unable to create websocket connection due to ${err}` })
         }
     }
+
     async connect() {
         if (this.con) return;
 
@@ -111,7 +111,8 @@ class Client {
             if (!this.twin) {
                 throw new Error({ message: "twin does not exist, please create a twin first" })
             }
-            if (!this.twin.pk) {
+
+            if (this.twin.pk.length < 3) {
                 const pk = generatePublicKey(this.mnemonics);
                 await applyExtrinsic(
                     setPublicKey,
@@ -125,11 +126,14 @@ class Client {
                 )
                 this.twin.pk = pk;
             }
-
             this.updateSource();
             this.createConnection()
-            this.__pingPong();
+            setTimeout(async () => {
 
+                await this.__pingPong();
+
+
+            }, 1000)
             if (this.isEnvNode()) {
                 process.on("SIGTERM", this.disconnectAndExit);
                 process.on("SIGINT", this.disconnectAndExit);
@@ -141,6 +145,7 @@ class Client {
                 };
                 window.onunload = this.disconnect;
             }
+
         } catch (err) {
             const c = this.con as WSConnection;
             if (c && c.readyState == c.OPEN) {
