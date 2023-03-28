@@ -128,6 +128,7 @@ class Client {
 
             this.updateSource();
             this.createConnection()
+            await this.waitForOpenConnection()
             this.__pingPong();
 
             if (this.isEnvNode()) {
