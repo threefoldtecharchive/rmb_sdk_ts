@@ -54,7 +54,7 @@ class ClientEnvelope extends Envelope {
 
     createNonce(size: number) {
 
-        let randArr: number[] = []
+        const randArr: number[] = []
         for (let i = 0; i < size; i++) {
             randArr.push(Math.random() * 10);
         }
@@ -116,7 +116,7 @@ class ClientEnvelope extends Envelope {
         const encryptedText = await aes.encrypt(dataUint8, sharedKey, { name: 'AES-GCM', iv: nonce })
 
         const encryptedArr = new Uint8Array(encryptedText)
-        let finalArr = new Uint8Array(encryptedArr.length + nonce.length);
+        const finalArr = new Uint8Array(encryptedArr.length + nonce.length);
         finalArr.set(nonce);
         finalArr.set(encryptedArr, nonce.length);
 
