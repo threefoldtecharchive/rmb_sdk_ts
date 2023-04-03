@@ -48,20 +48,20 @@ export function hexStringToArrayBuffer(hexString) {
     }
 
     // check for some non-hex characters
-    var bad = hexString.match(/[G-Z\s]/i);
+    const bad = hexString.match(/[G-Z\s]/i);
     if (bad) {
         console.log('WARNING: found non-hex characters', bad);
     }
 
     // split the string into pairs of octets
-    var pairs = hexString.match(/[\dA-F]{2}/gi);
+    const pairs = hexString.match(/[\dA-F]{2}/gi);
 
     // convert the octets to integers
-    var integers = pairs.map(function (s) {
+    const integers = pairs.map(function (s) {
         return parseInt(s, 16);
     });
 
-    var array = new Uint8Array(integers);
+    const array = new Uint8Array(integers);
 
 
     return array.buffer;
